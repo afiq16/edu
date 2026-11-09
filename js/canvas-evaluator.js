@@ -24,8 +24,65 @@ class KhataCanvasEvaluator {
         this.isImageLoaded = false;
         this.history = []; // Array of ImageData for undo
         this.redoStack = [];
+        this.zoomLevel = 1.0;
+        this.rotationAngle = 0; // 0, 90, 180, 270 degrees
 
         this.initEvents();
+    }
+
+    rotateImage() {
+        this.rotationAngle = (this.rotationAngle + 90) % 360;
+        if (!this.isImageLoaded) return;
+
+        // Swap width and height for 90 or 270 degree rotation
+        const isPerp = this.rotationAngle === 90 || this.rotationAngle === 270;
+        const origW = this.canvas.width;
+        const origH = this.canvas.height;
+
+        // Create temporary canvas to hold current drawings
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = origW;
+        tempCanvas.height = origH;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(this.canvas, 0, 0);
+
+        // Adjust canvas dimensions
+        this.canvas.width = origH;
+        this.canvas.height = origW;
+
+        this.ctx.save();
+        this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        this.ctx.rotate((90 * Math.PI) / 180);
+        this.ctx.drawImage(tempCanvas, -origW / 2, -origH / 2);
+        this.ctx.restore();
+
+        this.saveHistoryState();
+    }
+
+    setZoom(level) {
+        this.zoomLevel = Math.max(0.6, Math.min(2.5, Math.round(level * 10) / 10));
+        const wrapper = document.getElementById('canvasWrapper');
+        if (wrapper) {
+            wrapper.style.transform = `scale(${this.zoomLevel})`;
+            wrapper.style.transformOrigin = 'top center';
+            wrapper.style.transition = 'transform 0.15s ease-out';
+        }
+        const zoomDisplay = document.getElementById('canvasZoomDisplay');
+        if (zoomDisplay) {
+            zoomDisplay.textContent = `${Math.round(this.zoomLevel * 100)}%`;
+        }
+    }
+
+    zoomIn() {
+        this.setZoom(this.zoomLevel + 0.2);
+    }
+
+    zoomOut() {
+        this.setZoom(this.zoomLevel - 0.2);
+    }
+
+    resetZoom() {
+        this.setZoom(1.0);
     }
 
     /**
@@ -64,6 +121,7 @@ class KhataCanvasEvaluator {
 
                 // Render background image
                 this.redrawBaseImage();
+                this.resetZoom();
 
                 // Save baseline state to history
                 this.saveHistoryState();
@@ -284,7 +342,6 @@ class KhataCanvasEvaluator {
 
     drawStamp(x, y, stampType) {
         this.ctx.save();
-        const size = 32;
 
         if (stampType === 'tick') {
             // Green check mark
@@ -292,9 +349,9 @@ class KhataCanvasEvaluator {
             this.ctx.lineWidth = 5;
             this.ctx.lineCap = 'round';
             this.ctx.beginPath();
-            this.ctx.moveTo(x - 12, y);
-            this.ctx.lineTo(x - 3, y + 10);
-            this.ctx.lineTo(x + 16, y - 12);
+            this.ctx.moveTo(x - 14, y);
+            this.ctx.lineTo(x - 3, y + 12);
+            this.ctx.lineTo(x + 18, y - 14);
             this.ctx.stroke();
         } else if (stampType === 'cross') {
             // Red cross mark
@@ -302,37 +359,75 @@ class KhataCanvasEvaluator {
             this.ctx.lineWidth = 5;
             this.ctx.lineCap = 'round';
             this.ctx.beginPath();
-            this.ctx.moveTo(x - 10, y - 10);
-            this.ctx.lineTo(x + 10, y + 10);
-            this.ctx.moveTo(x + 10, y - 10);
-            this.ctx.lineTo(x - 10, y + 10);
+            this.ctx.moveTo(x - 12, y - 12);
+            this.ctx.lineTo(x + 12, y + 12);
+            this.ctx.moveTo(x + 12, y - 12);
+            this.ctx.lineTo(x - 12, y + 12);
             this.ctx.stroke();
         } else if (stampType === 'circle') {
-            // Blue circle
+            // Blue highlight circle
             this.ctx.strokeStyle = '#3b82f6';
-            this.ctx.lineWidth = 3;
+            this.ctx.lineWidth = 3.5;
             this.ctx.beginPath();
-            this.ctx.arc(x, y, 18, 0, Math.PI * 2);
+            this.ctx.arc(x, y, 22, 0, Math.PI * 2);
             this.ctx.stroke();
         } else if (stampType === 'star') {
             // Gold Star
+            this.ctx.font = '32px serif';
+            this.ctx.fillText('⭐', x - 16, y + 11);
+        } else if (stampType === 'hundred') {
+            // 100% Badge
+            this.ctx.font = 'bold 28px sans-serif';
+            this.ctx.fillText('💯', x - 18, y + 10);
+        } else if (stampType === 'doubt') {
+            // Red Question Mark
+            this.ctx.fillStyle = '#ef4444';
+            this.ctx.font = 'bold 32px sans-serif';
+            this.ctx.fillText('❓', x - 14, y + 12);
+        } else if (stampType === 'good') {
+            // Thumbs Up
             this.ctx.font = '28px serif';
-            this.ctx.fillText('⭐', x - 14, y + 10);
+            this.ctx.fillText('👍', x - 14, y + 10);
+        } else if (stampType === 'arrow') {
+            // Red Arrow indicator
+            this.ctx.fillStyle = '#ef4444';
+            this.ctx.font = 'bold 30px sans-serif';
+            this.ctx.fillText('➔', x - 12, y + 10);
         } else if (stampType === 'verygood') {
             // VG Badge
             this.ctx.fillStyle = '#8b5cf6';
-            this.ctx.font = 'bold 20px sans-serif';
-            this.ctx.fillText('Very Good! ✨', x, y);
+            this.ctx.font = 'bold 22px Hind Siliguri, sans-serif';
+            this.ctx.shadowColor = 'rgba(255, 255, 255, 0.9)';
+            this.ctx.shadowBlur = 6;
+            this.ctx.fillText('অসাধারণ! 🌟', x - 20, y + 6);
         }
 
         this.ctx.restore();
     }
 
     /**
-     * Export final evaluated image as Base64 data URL
+     * Export final evaluated image as Base64 data URL with automatic lightweight compression
      */
-    exportEvaluatedImage(format = 'image/jpeg', quality = 0.85) {
-        return this.canvas.toDataURL(format, quality);
+    exportEvaluatedImage(format = 'image/jpeg', quality = 0.72) {
+        try {
+            const maxWidth = 800;
+            let w = this.canvas.width;
+            let h = this.canvas.height;
+            if (w > maxWidth) {
+                h = Math.round((h * maxWidth) / w);
+                w = maxWidth;
+            }
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            const tempCtx = tempCanvas.getContext("2d");
+            tempCtx.fillStyle = "#ffffff";
+            tempCtx.fillRect(0, 0, w, h);
+            tempCtx.drawImage(this.canvas, 0, 0, w, h);
+            return tempCanvas.toDataURL(format, quality);
+        } catch (err) {
+            return this.canvas.toDataURL(format, quality);
+        }
     }
 }
 

@@ -10,8 +10,8 @@ class SmsOtpService {
     constructor() {
         this.activeOtpMap = new Map(); // Store phone -> { otp, expiresAt }
         this.demoStudentOtps = {
-            "01711000001": "1234",
-            "01822000002": "5678"
+            "01711000001": "123456",
+            "01822000002": "654321"
         };
         this.recaptchaVerifier = null;
         this.confirmationResult = null;
@@ -21,23 +21,34 @@ class SmsOtpService {
      * Initialize Firebase Recaptcha for Real SIM SMS
      */
     initRecaptcha() {
-        if (typeof firebase !== 'undefined' && firebase.auth && !this.recaptchaVerifier) {
+        if (typeof firebase !== 'undefined' && firebase.auth) {
             try {
-                this.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
-                    'size': 'invisible',
-                    'callback': (response) => {
-                        console.log("reCAPTCHA solved:", response);
-                    }
-                });
+                if (!this.recaptchaVerifier) {
+                    // Reset container if needed
+                    const container = document.getElementById('recaptcha-container');
+                    if (container) container.innerHTML = '';
+
+                    this.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', {
+                        'size': 'invisible',
+                        'callback': (response) => {
+                            console.log("reCAPTCHA verified:", response);
+                        },
+                        'expired-callback': () => {
+                            console.warn("reCAPTCHA expired, resetting...");
+                            this.recaptchaVerifier = null;
+                        }
+                    });
+                }
             } catch (e) {
                 console.warn("Recaptcha init notice:", e);
+                this.recaptchaVerifier = null;
             }
         }
     }
 
-    // Generate random 4-digit numeric code
-    generate4DigitOtp() {
-        return Math.floor(1000 + Math.random() * 9000).toString();
+    // Generate random 6-digit numeric code
+    generate6DigitOtp() {
+        return Math.floor(100000 + Math.random() * 900000).toString();
     }
 
     /**
@@ -46,74 +57,90 @@ class SmsOtpService {
      * @param {string} studentName - Student's full name
      */
     async sendOtp(phone, studentName = "শিক্ষার্থী") {
-        const cleanPhone = phone.trim();
-        const otpCode = this.generate4DigitOtp();
+        const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
+        const otpCode = this.generate6DigitOtp();
         const expiresAt = Date.now() + (5 * 60 * 1000); // 5 minutes
 
         this.activeOtpMap.set(cleanPhone, { otp: otpCode, expiresAt });
 
-        const message = `EduCheck: প্রিয় ${studentName}, আপনার ৪ ডিজিটের লগইন ওটিপি কোড হলো ${otpCode}। এটি ৫ মিনিটের জন্য কার্যকর।`;
+        const message = `EduCheck: প্রিয় ${studentName}, আপনার ৬ ডিজিটের লগইন ওটিপি কোড হলো ${otpCode}। এটি ৫ মিনিটের জন্য কার্যকর।`;
 
         // Format to International Bangladesh Format (+88017XXXXXXXX)
         let formattedPhone = cleanPhone;
-        if (formattedPhone.startsWith('0')) {
+        if (formattedPhone.startsWith('880')) {
+            formattedPhone = '+' + formattedPhone;
+        } else if (formattedPhone.startsWith('0')) {
             formattedPhone = '+88' + formattedPhone;
         } else if (!formattedPhone.startsWith('+')) {
             formattedPhone = '+880' + formattedPhone;
         }
 
+        let isLiveSmsSent = false;
+
         // Try Live Firebase Phone Auth (Sends real SMS to SIM)
         if (typeof firebase !== 'undefined' && firebase.auth && isFirebaseLive) {
             try {
-                // Check if running from file:// protocol (Google blocks SMS on file:// due to reCAPTCHA security)
+                // If on local file protocol, warn
                 if (window.location.protocol === 'file:') {
-                    console.warn("⚠️ Notice: Google Firebase requires running from http://localhost or a website domain to send real SMS to SIM. On local file://, using instant SMS display.");
-                    if (typeof Toastify !== 'undefined') {
-                        Toastify({
-                            text: `💡 আসল সিমে SMS পাঠাতে সাইটটি লাইভ বা localhost এ চলতে হবে। স্ক্রিনের ওটিপি কোড দিয়ে এখনই টেস্ট করুন!`,
-                            duration: 6000,
-                            close: true,
-                            style: { background: "linear-gradient(to right, #f59e0b, #d97706)", borderRadius: "8px" }
-                        }).showToast();
-                    }
+                    console.warn("⚠️ Google Firebase reCAPTCHA requires running on http://localhost:5500 or online website domain to send cellular SMS to SIM.");
                 } else {
                     this.initRecaptcha();
                     if (this.recaptchaVerifier) {
                         console.log(`📡 [Firebase Real SMS] Sending to ${formattedPhone}...`);
                         this.confirmationResult = await firebase.auth().signInWithPhoneNumber(formattedPhone, this.recaptchaVerifier);
-                        console.log("✅ Firebase Real SIM SMS Sent Successfully!");
-                        
+                        console.log("✅ Firebase Real SIM SMS Sent Successfully to:", formattedPhone);
+                        isLiveSmsSent = true;
+
+                        // Switch OTP UI to 6 boxes for Firebase live SMS
+                        document.getElementById("otpBox5").style.display = "inline-block";
+                        document.getElementById("otpBox6").style.display = "inline-block";
+
                         if (typeof Toastify !== 'undefined') {
                             Toastify({
-                                text: `📲 ${cleanPhone} সিমে ফায়ারবেস থেকে আসল SMS পাঠানো হয়েছে!`,
-                                duration: 5000,
+                                text: `📲 ${cleanPhone} নম্বরে ফায়ারবেস থেকে ৬ ডিজিটের SMS পাঠানো হয়েছে!`,
+                                duration: 6000,
                                 close: true,
                                 style: { background: "linear-gradient(to right, #10b981, #059669)", borderRadius: "8px" }
                             }).showToast();
                         }
-                        return { success: true, phone: cleanPhone, isFirebaseLiveSms: true };
                     }
                 }
             } catch (err) {
                 console.warn("Firebase Phone Auth Live Send notice:", err.message);
+                this.recaptchaVerifier = null; // Reset on failure
+                
+                // Show informative toast
                 if (typeof Toastify !== 'undefined') {
+                    let errMsg = err.message;
+                    if (err.code === 'auth/invalid-phone-number') errMsg = "সঠিক ১১ ডিজিটের ফোন নম্বর দিন (যেমন 017xxxxxxxx)";
+                    if (err.code === 'auth/quota-exceeded') errMsg = "ফায়ারবেস ফ্রি এসএমএস কোটা শেষ হয়েছে";
+                    if (err.code === 'auth/operation-not-allowed') errMsg = "ফায়ারবেস কনসোলে Phone Auth Enable করতে হবে";
+                    
                     Toastify({
-                        text: `⚠️ ফায়ারবেস কনসোলে Phone Auth Enable করতে হবে: ${err.message}`,
+                        text: `⚠️ ${errMsg} (স্ক্রিনের ওটিপি কোড দিয়ে লগইন করুন)`,
                         duration: 6000,
                         close: true,
-                        style: { background: "linear-gradient(to right, #ef4444, #dc2626)", borderRadius: "8px" }
+                        style: { background: "linear-gradient(to right, #f59e0b, #d97706)", borderRadius: "8px" }
                     }).showToast();
                 }
             }
         }
 
-        // Show Instant Visual SMS Notification Simulator
+        // Always update inline OTP hint
+        const inlineCodeEl = document.getElementById("inlineOtpCodeText");
+        if (inlineCodeEl) {
+            inlineCodeEl.textContent = otpCode;
+        }
+        window.latestReceivedOtp = otpCode;
+
+        // Always show Instant Visual SMS Popup as fallback/testing assistant
         this.showSimulatedSmsPopup(cleanPhone, otpCode, message);
 
         return {
             success: true,
             phone: cleanPhone,
             otp: otpCode,
+            isLiveSmsSent,
             message: "ওটিপি সফলভাবে পাঠানো হয়েছে"
         };
     }
@@ -122,10 +149,10 @@ class SmsOtpService {
      * Verify submitted 4-digit / 6-digit OTP
      */
     async verifyOtp(phone, enteredOtp) {
-        const cleanPhone = phone.trim();
+        const cleanPhone = phone.trim().replace(/[^0-9]/g, '');
 
-        // If Firebase Live Confirmation is active, verify with Firebase Cloud
-        if (this.confirmationResult) {
+        // If Firebase Live Confirmation is active, verify with Firebase Cloud first
+        if (this.confirmationResult && enteredOtp.length === 6) {
             try {
                 const result = await this.confirmationResult.confirm(enteredOtp);
                 return { valid: true, message: "ফায়ারবেস ক্লাউড ওটিপি যাচাই সফল হয়েছে!", user: result.user };
@@ -142,7 +169,7 @@ class SmsOtpService {
         }
 
         // Master bypass for testing
-        if (enteredOtp === "1234" || enteredOtp === "9999") {
+        if (enteredOtp === "1234" || enteredOtp === "9999" || enteredOtp === "123456") {
             return { valid: true, message: "মাস্টার কোড দ্বারা যাচাই সফল!" };
         }
 
@@ -198,4 +225,5 @@ class SmsOtpService {
 }
 
 window.smsService = new SmsOtpService();
+
 

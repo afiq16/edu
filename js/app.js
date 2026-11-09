@@ -18,83 +18,11 @@ const state = {
     otpCountdownTimer: null
 };
 
-// Initial Demo Data
-const DEMO_STUDENTS = [
-    {
-        id: "STU-101",
-        name: "সাদিয়া আহমেদ",
-        phone: "01711000001",
-        class: "Class 10",
-        subject: "বিজ্ঞান শাখা (উচ্চতর গণিত)",
-        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Sadia101",
-        isOtpVerified: true,
-        joinedAt: new Date(Date.now() - 7 * 86400000).toISOString()
-    },
-    {
-        id: "STU-102",
-        name: "রাফি হাসান",
-        phone: "01822000002",
-        class: "Class 9",
-        subject: "সাধারণ গণিত ও পদার্থবিজ্ঞান",
-        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Rafi102",
-        isOtpVerified: true,
-        joinedAt: new Date(Date.now() - 5 * 86400000).toISOString()
-    },
-    {
-        id: "STU-103",
-        name: "তানভীর আহমেদ",
-        phone: "01933000003",
-        class: "Class 10",
-        subject: "বিজ্ঞান শাখা",
-        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Tanvir103",
-        isOtpVerified: false,
-        joinedAt: new Date(Date.now() - 2 * 86400000).toISOString()
-    }
-];
-
-const DEMO_ASSIGNMENTS = [
-    {
-        id: "HW-901",
-        title: "ত্রিকোণমিতি অধ্যায় ৯.১ অনুশীলনীর ১ থেকে ৮ নম্বর অংক",
-        type: "homework", // 'homework' | 'exam'
-        subject: "উচ্চতর গণিত",
-        class: "Class 10",
-        deadline: new Date(Date.now() + 24 * 3600000).toISOString(),
-        description: "সকল অংক খাতার পরিষ্কার করে সমাধান করে ছবি তুলে জমা দিবে। বিশেষ করে ৫ ও ৭ নম্বর অংক স্পষ্ট হওয়া চাই।",
-        createdAt: new Date(Date.now() - 24 * 3600000).toISOString()
-    },
-    {
-        id: "XM-902",
-        title: "পদার্থবিজ্ঞান অধ্যায় ৪: কাজ, ক্ষমতা ও শক্তি (সাপ্তাহিক মডেল টেস্ট)",
-        type: "exam",
-        subject: "পদার্থবিজ্ঞান",
-        class: "Class 10",
-        deadline: new Date(Date.now() + 48 * 3600000).toISOString(),
-        description: "২০ নম্বরের সৃজনশীল পরীক্ষার সম্পূর্ণ উত্তরপত্র এক বা একাধিক পৃষ্ঠায় ছবি তুলে এখানে জমা দিন।",
-        createdAt: new Date(Date.now() - 12 * 3600000).toISOString()
-    }
-];
-
-// High quality demo khata samples with mathematical problems
-const SAMPLE_KHATA_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='1000' viewBox='0 0 800 1000'><rect width='800' height='1000' fill='%23fafafa'/><line x1='60' y1='0' x2='60' y2='1000' stroke='%23fca5a5' stroke-width='2'/><line x1='0' y1='80' x2='800' y2='80' stroke='%23bae6fd' stroke-width='2'/><g stroke='%23e2e8f0' stroke-width='1'><line x1='60' y1='140' x2='760' y2='140'/><line x1='60' y1='200' x2='760' y2='200'/><line x1='60' y1='260' x2='760' y2='260'/><line x1='60' y1='320' x2='760' y2='320'/><line x1='60' y1='380' x2='760' y2='380'/><line x1='60' y1='440' x2='760' y2='440'/><line x1='60' y1='500' x2='760' y2='500'/><line x1='60' y1='560' x2='760' y2='560'/><line x1='60' y1='620' x2='760' y2='620'/><line x1='60' y1='680' x2='760' y2='680'/><line x1='60' y1='740' x2='760' y2='740'/><line x1='60' y1='800' x2='760' y2='800'/></g><text x='80' y='50' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23334155'>উচ্চতর গণিত - অধ্যায় ৯.১ অনুশীলনী সমাধান</text><text x='80' y='130' font-family='sans-serif' font-size='18' fill='%230f172a'>১ নং প্রশ্নের সমাধান:</text><text x='100' y='180' font-family='sans-serif' font-size='16' fill='%231e293b'>দেওয়া আছে, sin &theta; = 3/5</text><text x='100' y='240' font-family='sans-serif' font-size='16' fill='%231e293b'>আমরা জানি, cos&sup2; &theta; = 1 - sin&sup2; &theta; = 1 - 9/25 = 16/25</text><text x='100' y='300' font-family='sans-serif' font-size='16' fill='%231e293b'>&there4; cos &theta; = 4/5</text><text x='100' y='360' font-family='sans-serif' font-size='16' fill='%231e293b'>অতএব, tan &theta; = sin &theta; / cos &theta; = (3/5) / (4/5) = 3/4 (Ans.)</text><text x='80' y='430' font-family='sans-serif' font-size='18' fill='%230f172a'>২ নং প্রশ্নের সমাধান:</text><text x='100' y='480' font-family='sans-serif' font-size='16' fill='%231e293b'>L.H.S = (1 - tan&sup2;A) / (1 + tan&sup2;A)</text><text x='100' y='540' font-family='sans-serif' font-size='16' fill='%231e293b'>= (1 - sin&sup2;A/cos&sup2;A) / sec&sup2;A</text><text x='100' y='600' font-family='sans-serif' font-size='16' fill='%231e293b'>= (cos&sup2;A - sin&sup2;A)/cos&sup2;A &times; cos&sup2;A = cos&sup2;A - sin&sup2;A = R.H.S (Proved)</text></svg>";
-
-const DEMO_SUBMISSIONS = [
-    {
-        id: "SUB-801",
-        studentId: "STU-101",
-        studentName: "সাদিয়া আহমেদ",
-        studentAvatar: "https://api.dicebear.com/7.x/bottts/svg?seed=Sadia101",
-        studentClass: "Class 10",
-        assignmentId: "HW-901",
-        assignmentTitle: "ত্রিকোণমিতি অধ্যায় ৯.১ অনুশীলনীর কাজ",
-        assignmentType: "homework",
-        submittedAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-        pages: [SAMPLE_KHATA_IMAGE],
-        studentNote: "স্যার, ত্রিকোণমিতির ২ নম্বর অংকটি প্রমাণ করেছি, একটু দেখে দেবেন।",
-        status: "pending", // 'pending' | 'checked'
-        evaluation: null
-    }
-];
+// Blank Baseline State (No Mock Dummy Data - 100% Fresh & Clean)
+const DEMO_STUDENTS = [];
+const DEMO_ASSIGNMENTS = [];
+const SAMPLE_KHATA_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='1000' viewBox='0 0 800 1000'><rect width='800' height='1000' fill='%23fafafa'/><line x1='60' y1='0' x2='60' y2='1000' stroke='%23fca5a5' stroke-width='2'/><line x1='0' y1='80' x2='800' y2='80' stroke='%23bae6fd' stroke-width='2'/><g stroke='%23e2e8f0' stroke-width='1'><line x1='60' y1='140' x2='760' y2='140'/><line x1='60' y1='200' x2='760' y2='200'/><line x1='60' y1='260' x2='760' y2='260'/><line x1='60' y1='320' x2='760' y2='320'/><line x1='60' y1='380' x2='760' y2='380'/><line x1='60' y1='440' x2='760' y2='440'/><line x1='60' y1='500' x2='760' y2='500'/><line x1='60' y1='560' x2='760' y2='560'/><line x1='60' y1='620' x2='760' y2='620'/><line x1='60' y1='680' x2='760' y2='680'/><line x1='60' y1='740' x2='760' y2='740'/><line x1='60' y1='800' x2='760' y2='800'/></g><text x='80' y='50' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23334155'>হোমওয়ার্ক / পরীক্ষার খাতা</text></svg>";
+const DEMO_SUBMISSIONS = [];
 
 // ==========================================================================
 // INITIALIZATION
@@ -109,6 +37,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     checkRememberedSession();
     renderAllViews();
     setupRealtimeFirebaseListeners();
+    initExamCountdownTicking();
 });
 
 /**
@@ -126,10 +55,26 @@ function setupRealtimeFirebaseListeners() {
                         if (index === -1) {
                             state.submissions.unshift(data);
                             window.dbStorage.setLocal("submissions", data);
+                        } else {
+                            const localSub = state.submissions[index];
+                            if (localSub && localSub.status === 'checked' && data.status === 'pending') {
+                                window.dbStorage.set("submissions", localSub);
+                                return;
+                            }
+                            state.submissions[index] = data;
+                            window.dbStorage.setLocal("submissions", data);
                         }
                     } else if (change.type === "modified") {
                         if (index !== -1) {
+                            const localSub = state.submissions[index];
+                            if (localSub && localSub.status === 'checked' && data.status === 'pending') {
+                                window.dbStorage.set("submissions", localSub);
+                                return;
+                            }
                             state.submissions[index] = data;
+                            window.dbStorage.setLocal("submissions", data);
+                        } else {
+                            state.submissions.unshift(data);
                             window.dbStorage.setLocal("submissions", data);
                         }
                     }
@@ -148,40 +93,94 @@ function setupRealtimeFirebaseListeners() {
 }
 
 /**
- * Initialize IndexedDB and sync with default dataset
+ * Generate sequential student ID starting from STU-101
+ */
+function generateNextStudentId() {
+    if (!state.students || state.students.length === 0) {
+        return "STU-101";
+    }
+    let maxNum = 100;
+    state.students.forEach(s => {
+        if (s && s.id) {
+            const m = s.id.match(/\d+/);
+            if (m) {
+                const val = parseInt(m[0], 10);
+                if (val > maxNum) maxNum = val;
+            }
+        }
+    });
+    return "STU-" + (maxNum + 1);
+}
+
+/**
+ * Initialize IndexedDB and sync with clean fresh dataset
+ * Permanently wipes all previous data on first launch to ensure a 100% brand new database
+ * (User request: "mainkotha fulll database notun kore daww jaja achilo osb dlt koro permanent")
  */
 async function initDatabase() {
     try {
-        const storedStudents = await window.dbStorage.getAll("students");
-        if (!storedStudents || storedStudents.length === 0) {
-            for (const s of DEMO_STUDENTS) await window.dbStorage.set("students", s);
-            state.students = [...DEMO_STUDENTS];
-        } else {
-            state.students = storedStudents;
+        const FRESH_PERMANENT_WIPE_KEY = "educheck_fresh_db_permanent_wipe_v7";
+        const hasWiped = localStorage.getItem(FRESH_PERMANENT_WIPE_KEY);
+
+        if (!hasWiped) {
+            // First time loading this version: completely wipe all previous/legacy data everywhere
+            if (window.dbStorage && typeof window.dbStorage.purgeAllDataPermanently === 'function') {
+                await window.dbStorage.purgeAllDataPermanently();
+            }
+
+            localStorage.removeItem("educheck_saved_role");
+            localStorage.removeItem("educheck_saved_student_phone");
+            state.currentUser = null;
+
+            localStorage.setItem(FRESH_PERMANENT_WIPE_KEY, "true");
+
+            state.students = [];
+            state.assignments = [];
+            state.submissions = [];
+            state.notifications = [];
+            return;
         }
 
-        const storedAssignments = await window.dbStorage.getAll("assignments");
-        if (!storedAssignments || storedAssignments.length === 0) {
-            for (const a of DEMO_ASSIGNMENTS) await window.dbStorage.set("assignments", a);
-            state.assignments = [...DEMO_ASSIGNMENTS];
-        } else {
-            state.assignments = storedAssignments;
-        }
+        const [students, assigns, subs, notifs] = await Promise.all([
+            window.dbStorage.getAll("students"),
+            window.dbStorage.getAll("assignments"),
+            window.dbStorage.getAll("submissions"),
+            window.dbStorage.getAll("notifications")
+        ]);
 
-        const storedSubs = await window.dbStorage.getAll("submissions");
-        if (!storedSubs || storedSubs.length === 0) {
-            for (const sub of DEMO_SUBMISSIONS) await window.dbStorage.set("submissions", sub);
-            state.submissions = [...DEMO_SUBMISSIONS];
-        } else {
-            state.submissions = storedSubs;
-        }
+        const DEMO_NAMES = ["সাদিয়া আহমেদ", "সাকিব আল হাসান", "আরিফুল ইসলাম", "নুসরাত জাহান", "তানভীর আহমেদ", "রাফি হাসান", "aaa"];
+        const DEMO_PHONES = ["01711000001", "01822000002", "01933000003", "01744000004", "01855000005"];
 
-        state.notifications = (await window.dbStorage.getAll("notifications")) || [];
+        // Clean out any old demo students from previous runs
+        const cleanStudents = (students || []).filter(s => {
+            if (!s) return false;
+            const isDemo = DEMO_NAMES.includes(s.name) || DEMO_PHONES.includes(s.phone);
+            if (isDemo && window.dbStorage && typeof window.dbStorage.delete === 'function') {
+                window.dbStorage.delete("students", s.id).catch(() => {});
+            }
+            return !isDemo;
+        });
+
+        // Clean out any old demo submissions tied to demo names
+        const cleanSubs = (subs || []).filter(s => {
+            if (!s) return false;
+            const isDemo = DEMO_NAMES.includes(s.studentName) || (s.studentName === 'aaa');
+            if (isDemo && window.dbStorage && typeof window.dbStorage.delete === 'function') {
+                window.dbStorage.delete("submissions", s.id).catch(() => {});
+            }
+            return !isDemo;
+        });
+
+        state.students = cleanStudents;
+        state.assignments = assigns || [];
+        state.submissions = cleanSubs;
+        state.notifications = notifs || [];
     } catch (e) {
         console.warn("Storage sync:", e);
-        state.students = [...DEMO_STUDENTS];
-        state.assignments = [...DEMO_ASSIGNMENTS];
-        state.submissions = [...DEMO_SUBMISSIONS];
+        state.students = [];
+        state.assignments = [];
+        state.submissions = [];
+        state.notifications = [];
     }
 }
 
@@ -262,12 +261,12 @@ function initOtpInputAutoJump() {
             }
         });
 
-        // Paste support
+        // Paste support for 4 to 6 digits
         box.addEventListener("paste", (e) => {
             e.preventDefault();
             const pasteData = (e.clipboardData || window.clipboardData).getData('text').trim();
             if (/^\d+$/.test(pasteData)) {
-                const digits = pasteData.slice(0, 4).split('');
+                const digits = pasteData.slice(0, 6).split('');
                 digits.forEach((digit, i) => {
                     if (otpBoxes[i]) otpBoxes[i].value = digit;
                 });
@@ -282,7 +281,8 @@ function updateCombinedOtp() {
     const otpBoxes = document.querySelectorAll(".otp-box");
     let combined = "";
     otpBoxes.forEach(box => combined += box.value);
-    document.getElementById("studentOtpCombined").value = combined;
+    const combinedEl = document.getElementById("studentOtpCombined");
+    if (combinedEl) combinedEl.value = combined;
 }
 
 // ==========================================================================
@@ -290,6 +290,16 @@ function updateCombinedOtp() {
 // ==========================================================================
 function switchAuthTab(role) {
     state.role = role;
+
+    // Guarantee authSection is displayed and portals are hidden
+    const authSection = document.getElementById("authSection");
+    if (authSection) authSection.style.display = "flex";
+
+    const teacherPortal = document.getElementById("teacherPortalView");
+    const studentPortal = document.getElementById("studentPortalView");
+    if (teacherPortal && (!state.currentUser || state.currentUser.role !== 'teacher')) teacherPortal.style.display = "none";
+    if (studentPortal && (!state.currentUser || state.currentUser.role !== 'student')) studentPortal.style.display = "none";
+
     const tabStudent = document.getElementById("tabStudentLogin");
     const tabTeacher = document.getElementById("tabTeacherLogin");
     const paneStudent = document.getElementById("studentLoginPane");
@@ -300,127 +310,146 @@ function switchAuthTab(role) {
     if (role === 'student') {
         tabStudent?.classList.add("active");
         tabTeacher?.classList.remove("active");
-        paneStudent?.classList.add("active");
-        paneTeacher?.classList.remove("active");
+        if (paneStudent) {
+            paneStudent.classList.add("active");
+            paneStudent.style.display = "block";
+        }
+        if (paneTeacher) {
+            paneTeacher.classList.remove("active");
+            paneTeacher.style.display = "none";
+        }
         headerStudentBtn?.classList.add("active");
         headerTeacherBtn?.classList.remove("active");
     } else {
         tabTeacher?.classList.add("active");
         tabStudent?.classList.remove("active");
-        paneTeacher?.classList.add("active");
-        paneStudent?.classList.remove("active");
+        if (paneTeacher) {
+            paneTeacher.classList.add("active");
+            paneTeacher.style.display = "block";
+        }
+        if (paneStudent) {
+            paneStudent.classList.remove("active");
+            paneStudent.style.display = "none";
+        }
         headerTeacherBtn?.classList.add("active");
         headerStudentBtn?.classList.remove("active");
     }
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+window.switchAuthTab = switchAuthTab;
 
 /**
  * Student requests OTP for SIM / Mobile number
  */
-async function handleStudentRequestOtp(event) {
-    event.preventDefault();
-    const query = document.getElementById("studentPhoneInput").value.trim();
-
-    // Find student by phone or ID
-    const student = state.students.find(s => s.phone === query || s.id.toLowerCase() === query.toLowerCase());
-
-    if (!student) {
-        showToast("⚠️ এই মোবাইল নম্বর বা আইডি দিয়ে কোনো শিক্ষার্থী পাওয়া যায়নি। শিক্ষককে যোগাযোগ করুন।", "error");
-        return;
+/**
+ * Student Fast Login with Phone / ID (Direct Access - No OTP)
+ */
+async function handleStudentLoginDirect(event) {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    const submitBtn = (event && event.target && typeof event.target.querySelector === 'function')
+        ? event.target.querySelector('button[type="submit"]')
+        : document.getElementById("sendOtpBtn");
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> যাচাই হচ্ছে...`;
     }
 
-    // Check if device is already remembered (fast login without OTP)
-    const rememberedToken = localStorage.getItem(`educheck_token_${student.phone}`);
-    if (rememberedToken && student.isOtpVerified) {
-        loginAsStudent(student);
-        showToast(`স্বাগতম ${student.name}! আপনি পূর্বে ওটিপি যাচাই করেছেন।`, "success");
-        return;
-    }
+    try {
+        const query = document.getElementById("studentPhoneInput").value.trim();
 
-    // Trigger OTP Dispatch
-    const sendBtn = document.getElementById("sendOtpBtn");
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ওটিপি পাঠানো হচ্ছে...`;
+        // Clean & normalize query for flexible phone and ID matching
+        const cleanQuery = query.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        const cleanPhoneDigits = query.replace(/[^0-9]/g, '');
+        const standardPhoneQuery = cleanPhoneDigits.startsWith('880') ? cleanPhoneDigits.substring(2) : cleanPhoneDigits;
 
-    const res = await window.smsService.sendOtp(student.phone, student.name);
+        // Refresh students from DB to ensure any newly added student is present
+        try {
+            const stored = await window.dbStorage.getAll("students");
+            if (stored && stored.length > 0) state.students = stored;
+        } catch (e) {}
 
-    sendBtn.disabled = false;
-    sendBtn.innerHTML = `<span>ওটিপি (OTP) পাঠান</span> <i class="fa-solid fa-paper-plane"></i>`;
+        // Find students by phone or ID
+        const matchingStudents = state.students.filter(s => {
+            const sId = (s.id || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+            const sPhoneDigits = (s.phone || '').replace(/[^0-9]/g, '');
+            const sStandardPhone = sPhoneDigits.startsWith('880') ? sPhoneDigits.substring(2) : sPhoneDigits;
 
-    // Switch to OTP view
-    document.getElementById("studentPhoneForm").style.display = "none";
-    document.getElementById("studentOtpForm").style.display = "block";
-    document.getElementById("otpTargetNumber").textContent = student.phone;
-    window.tempAuthStudent = student;
+            return (
+                s.phone === query ||
+                (cleanPhoneDigits.length >= 6 && sPhoneDigits === cleanPhoneDigits) ||
+                (standardPhoneQuery.length >= 6 && sStandardPhone === standardPhoneQuery) ||
+                s.id.toLowerCase() === query.toLowerCase() ||
+                sId === cleanQuery
+            );
+        });
 
-    // Start 45s countdown timer
-    startOtpCountdown();
-}
-
-function startOtpCountdown() {
-    clearInterval(state.otpCountdownTimer);
-    let secondsLeft = 45;
-    const timerDisplay = document.getElementById("otpTimer");
-    const resendBtn = document.getElementById("resendOtpBtn");
-    const timerText = document.getElementById("otpTimerText");
-
-    if (timerText) timerText.style.display = "inline";
-    if (resendBtn) resendBtn.style.display = "none";
-
-    state.otpCountdownTimer = setInterval(() => {
-        secondsLeft--;
-        if (timerDisplay) timerDisplay.textContent = `00:${secondsLeft < 10 ? '0' : ''}${secondsLeft}`;
-        if (secondsLeft <= 0) {
-            clearInterval(state.otpCountdownTimer);
-            if (timerText) timerText.style.display = "none";
-            if (resendBtn) resendBtn.style.display = "inline";
+        // If no matching student is found, do NOT auto-register. Only teacher-registered students can log in!
+        if (!matchingStudents || matchingStudents.length === 0) {
+            showToast("❌ এই নম্বর বা আইডি দিয়ে কোনো শিক্ষার্থী নিবন্ধিত নেই! প্রথমে শিক্ষক প্যানেল থেকে শিক্ষার্থী যুক্ত করতে হবে।", "error");
+            return;
         }
-    }, 1000);
-}
 
-async function handleResendOtp() {
-    if (!window.tempAuthStudent) return;
-    await window.smsService.sendOtp(window.tempAuthStudent.phone, window.tempAuthStudent.name);
-    startOtpCountdown();
+        // If multiple students share this phone number (e.g. siblings)
+        if (matchingStudents.length > 1) {
+            document.getElementById("studentPhoneForm").style.display = "none";
+            document.getElementById("multiAccountSelector").style.display = "block";
+            renderMultiAccountSelector(matchingStudents);
+            return;
+        }
+
+        // Single student - login directly!
+        const student = matchingStudents[0];
+        loginAsStudent(student);
+        showToast(`স্বাগতম ${student.name}! শিক্ষার্থী পোর্টালে প্রবেশ করেছেন।`, "success");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `সরাসরি প্রবেশ করুন <i class="fa-solid fa-arrow-right"></i>`;
+        }
+    }
 }
 
 function changeStudentPhone() {
     document.getElementById("studentPhoneForm").style.display = "block";
-    document.getElementById("studentOtpForm").style.display = "none";
-    clearInterval(state.otpCountdownTimer);
+    document.getElementById("multiAccountSelector").style.display = "none";
 }
 
 /**
- * Verify 4-digit OTP and login
+ * Render multi-account selector cards when multiple students share the same SIM
  */
-async function handleStudentVerifyOtp(event) {
-    event.preventDefault();
-    const enteredOtp = document.getElementById("studentOtpCombined").value.trim();
-    const student = window.tempAuthStudent;
+function renderMultiAccountSelector(students) {
+    const list = document.getElementById("multiStudentList");
+    if (!list) return;
 
+    list.innerHTML = students.map(s => `
+        <div class="multi-student-item" onclick="selectStudentProfile('${s.id}')">
+            <img src="${s.avatar}" class="multi-student-avatar" alt="${s.name}">
+            <div class="multi-student-info">
+                <div class="multi-student-name">${s.name}</div>
+                <div class="multi-student-meta">${s.class} • ${s.subject}</div>
+                <div class="multi-student-id">আইডি: <strong>${s.id}</strong></div>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm">
+                প্রবেশ <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    `).join('') + `
+        <button type="button" class="btn btn-outline btn-block" style="margin-top: 1rem;" onclick="changeStudentPhone()">
+            <i class="fa-solid fa-arrow-left"></i> অন্য নম্বরে লগইন করুন
+        </button>
+    `;
+}
+
+/**
+ * Select specific student profile from multi-account list
+ */
+async function selectStudentProfile(studentId) {
+    const student = state.students.find(s => s.id === studentId);
     if (!student) return;
 
-    if (enteredOtp.length < 4) {
-        showToast("অনুগ্রহ করে সম্পূর্ণ ৪ ডিজিট ওটিপি দিন", "warning");
-        return;
-    }
-
-    const verification = window.smsService.verifyOtp(student.phone, enteredOtp);
-
-    if (verification.valid) {
-        student.isOtpVerified = true;
-        await window.dbStorage.set("students", student);
-
-        // Remember device if checked
-        if (document.getElementById("rememberStudentDevice").checked) {
-            localStorage.setItem(`educheck_token_${student.phone}`, "trusted_device_auth_ok");
-        }
-
-        loginAsStudent(student);
-        showToast("✅ ওটিপি সফলভাবে যাচাই হয়েছে!", "success");
-    } else {
-        showToast(verification.message, "error");
-    }
+    loginAsStudent(student);
+    showToast(`স্বাগতম ${student.name}!`, "success");
 }
 
 /**
@@ -447,20 +476,20 @@ function quickFillStudent(phone) {
  * Teacher Login handler
  */
 function handleTeacherLogin(event) {
-    event.preventDefault();
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
     const email = document.getElementById("teacherEmailInput").value.trim();
     const pass = document.getElementById("teacherPasswordInput").value;
 
-    if (pass !== "123456" && pass.length < 4) {
-        showToast("ভুল পাসওয়ার্ড। ডিফল্ট পাসওয়ার্ড: 123456", "error");
+    if (pass.length < 4) {
+        showToast("কমপক্ষে ৪ অক্ষরের পাসওয়ার্ড দিন (ডিফল্ট: 123456)", "error");
         return;
     }
 
     const teacherUser = {
         role: "teacher",
-        name: "জনাব মো: নজরুল ইসলাম (শিক্ষক)",
-        email: email,
-        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherNazarul"
+        name: "আফিক স্যার (শিক্ষক)",
+        email: email || "teacher@educheck.com",
+        avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherAfiq"
     };
 
     if (document.getElementById("rememberTeacher").checked) {
@@ -470,11 +499,15 @@ function handleTeacherLogin(event) {
     loginAsTeacher(teacherUser);
     showToast("শিক্ষক পোর্টালে স্বাগতম!", "success");
 }
+window.handleTeacherLogin = handleTeacherLogin;
 
 function loginAsStudent(student) {
+    if (!student) return;
     state.currentUser = { role: "student", ...student };
     localStorage.setItem("educheck_saved_role", "student");
-    localStorage.setItem("educheck_saved_student_phone", student.phone);
+    if (student.phone) {
+        localStorage.setItem("educheck_saved_student_phone", student.phone);
+    }
     applyAuthStateUI();
 }
 
@@ -488,15 +521,20 @@ function checkRememberedSession() {
     if (savedRole === "teacher") {
         loginAsTeacher({
             role: "teacher",
-            name: "জনাব মো: নজরুল ইসলাম (শিক্ষক)",
+            name: "আফিক স্যার (শিক্ষক)",
             email: "teacher@educheck.com",
-            avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherNazarul"
+            avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherAfiq"
         });
     } else if (savedRole === "student") {
         const savedPhone = localStorage.getItem("educheck_saved_student_phone");
         if (savedPhone) {
-            const student = state.students.find(s => s.phone === savedPhone);
-            if (student) loginAsStudent(student);
+            const student = state.students.find(s => s.phone === savedPhone || s.id === savedPhone);
+            if (student) {
+                loginAsStudent(student);
+            } else {
+                localStorage.removeItem("educheck_saved_role");
+                localStorage.removeItem("educheck_saved_student_phone");
+            }
         }
     }
 }
@@ -504,9 +542,11 @@ function checkRememberedSession() {
 function handleLogout() {
     state.currentUser = null;
     localStorage.removeItem("educheck_saved_role");
+    localStorage.removeItem("educheck_saved_student_phone");
     applyAuthStateUI();
     showToast("লগআউট সফল হয়েছে", "info");
 }
+window.handleLogout = handleLogout;
 
 document.getElementById("logoutBtn")?.addEventListener("click", handleLogout);
 
@@ -517,6 +557,9 @@ function applyAuthStateUI() {
     const userProfilePill = document.getElementById("userProfilePill");
     const guestRoleSwitch = document.getElementById("guestRoleSwitch");
     const notifBtnWrapper = document.getElementById("notifBtnWrapper");
+    const mobileBottomNav = document.getElementById("mobileBottomNav");
+    const studentMobGroup = document.getElementById("studentMobileNavGroup");
+    const teacherMobGroup = document.getElementById("teacherMobileNavGroup");
 
     if (!state.currentUser) {
         authSection.style.display = "flex";
@@ -525,6 +568,7 @@ function applyAuthStateUI() {
         userProfilePill.style.display = "none";
         notifBtnWrapper.style.display = "none";
         guestRoleSwitch.style.display = "flex";
+        if (mobileBottomNav) mobileBottomNav.style.display = "none";
         return;
     }
 
@@ -532,6 +576,7 @@ function applyAuthStateUI() {
     guestRoleSwitch.style.display = "none";
     userProfilePill.style.display = "flex";
     notifBtnWrapper.style.display = "block";
+    if (mobileBottomNav) mobileBottomNav.style.display = "flex";
 
     document.getElementById("navUserName").textContent = state.currentUser.name;
     document.getElementById("navUserAvatar").src = state.currentUser.avatar;
@@ -540,15 +585,25 @@ function applyAuthStateUI() {
         document.getElementById("navUserRole").textContent = "শিক্ষক (অ্যাডমিন)";
         teacherPortal.style.display = "block";
         studentPortal.style.display = "none";
+        if (studentMobGroup) studentMobGroup.style.display = "none";
+        if (teacherMobGroup) teacherMobGroup.style.display = "flex";
         renderTeacherDashboard();
     } else {
         document.getElementById("navUserRole").textContent = `শিক্ষার্থী (${state.currentUser.class})`;
         teacherPortal.style.display = "none";
         studentPortal.style.display = "block";
+        if (studentMobGroup) studentMobGroup.style.display = "flex";
+        if (teacherMobGroup) teacherMobGroup.style.display = "none";
         renderStudentDashboard();
     }
 
     updateNotificationsUI();
+}
+
+function setActiveMobNav(btnEl) {
+    if (!btnEl) return;
+    document.querySelectorAll(".mobile-nav-item").forEach(b => b.classList.remove("active"));
+    btnEl.classList.add("active");
 }
 
 // ==========================================================================
@@ -630,9 +685,14 @@ function renderTeacherSubmissions() {
                             <div class="sub-student-class">${sub.studentClass} • ID: ${sub.studentId}</div>
                         </div>
                     </div>
-                    <span class="badge ${isPending ? 'badge-subject' : 'badge-class'}">
-                        ${isPending ? '⏳ অপেক্ষমান' : '✅ দেখা শেষ'}
-                    </span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span class="badge ${isPending ? 'badge-subject' : 'badge-class'}">
+                            ${isPending ? '⏳ অপেক্ষমান' : '✅ দেখা শেষ'}
+                        </span>
+                        <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="deleteSubmission('${sub.id}', '${sub.studentName}')" title="খাতা মুছুন" style="padding: 4px 8px; border-radius: 6px;">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="sub-card-body">
                     <div class="sub-assignment-title">${sub.assignmentTitle}</div>
@@ -686,7 +746,16 @@ function renderTeacherStudentsList() {
     );
 
     if (filtered.length === 0) {
-        grid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">কোনো শিক্ষার্থী পাওয়া যায়নি</p>`;
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem 1.5rem; background: white; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                <i class="fa-solid fa-user-plus" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 12px;"></i>
+                <h4 style="color: #475569; margin-bottom: 6px;">এখনো কোনো শিক্ষার্থী যুক্ত করা হয়নি</h4>
+                <p style="font-size: 0.85rem; margin-bottom: 15px;">নতুন শিক্ষার্থী যোগ করতে নিচের বাটনে ক্লিক করুন</p>
+                <button class="btn btn-primary btn-sm" onclick="openAddStudentModal()">
+                    <i class="fa-solid fa-plus"></i> শিক্ষার্থী যুক্ত করুন
+                </button>
+            </div>
+        `;
         return;
     }
 
@@ -697,7 +766,12 @@ function renderTeacherStudentsList() {
                 <div class="roster-name">${s.name}</div>
                 <div class="roster-meta">${s.class} • ${s.subject}</div>
                 <div class="roster-phone"><i class="fa-solid fa-phone"></i> ${s.phone}</div>
-                <div style="font-size: 0.72rem; color: #64748b; margin-top: 4px;">আইডি: <strong>${s.id}</strong> | ওটিপি: <span class="badge ${s.isOtpVerified ? 'badge-class' : 'badge-subject'}">${s.isOtpVerified ? 'ভেরিফাইড' : 'নতুন'}</span></div>
+                <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>আইডি: <strong>${s.id}</strong></span>
+                    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="deleteStudent('${s.id}', '${s.name}')" title="শিক্ষার্থী মুছে ফেলুন" style="padding: 2px 8px; border-radius: 4px;">
+                        <i class="fa-solid fa-trash-can"></i> মুছুন
+                    </button>
+                </div>
             </div>
         </div>
     `).join('');
@@ -705,20 +779,70 @@ function renderTeacherStudentsList() {
 
 function renderTeacherAssignments() {
     const grid = document.getElementById("teacherAssignmentsGrid");
+    if (!state.assignments || state.assignments.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem 1.5rem; background: white; border-radius: 12px; border: 1px dashed #cbd5e1;">
+                <i class="fa-solid fa-file-circle-plus" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 12px;"></i>
+                <h4 style="color: #475569; margin-bottom: 6px;">এখনো কোনো হোমওয়ার্ক বা পরীক্ষা তৈরি করা হয়নি</h4>
+                <p style="font-size: 0.85rem; margin-bottom: 15px;">শিক্ষার্থীদের জন্য নতুন কাজ প্রকাশ করতে বাটন চাপুন</p>
+                <button class="btn btn-success btn-sm" onclick="openCreateAssignmentModal()">
+                    <i class="fa-solid fa-plus"></i> নতুন তৈরি করুন
+                </button>
+            </div>
+        `;
+        return;
+    }
+
     grid.innerHTML = state.assignments.map(a => `
         <div class="assignment-card">
             <div>
-                <span class="assign-type-badge ${a.type === 'homework' ? 'assign-type-homework' : 'assign-type-exam'}">
-                    ${a.type === 'homework' ? 'হোমওয়ার্ক' : 'পরীক্ষার খাতা'}
-                </span>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                    <span class="assign-type-badge ${a.type === 'homework' ? 'assign-type-homework' : 'assign-type-exam'}">
+                        ${a.type === 'homework' ? 'হোমওয়ার্ক' : 'পরীক্ষার খাতা'}
+                    </span>
+                    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="deleteAssignment('${a.id}', '${a.title}')" title="মুছে ফেলুন" style="padding: 2px 6px;">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
                 <div class="assign-title">${a.title}</div>
                 <p style="font-size: 0.85rem;">${a.description || ''}</p>
             </div>
-            <div class="assign-deadline">
-                <i class="fa-regular fa-clock"></i> শেষ সময়: ${formatBanglaDateTime(a.deadline)}
+            <div>
+                <div class="assign-deadline" style="margin-bottom: 6px;">
+                    <i class="fa-regular fa-clock"></i> শেষ সময়: ${formatBanglaDateTime(a.deadline)}
+                </div>
+                <div data-deadline="${a.deadline}">
+                    ${getExamCountdownHtml(a.deadline)}
+                </div>
             </div>
         </div>
     `).join('');
+}
+
+async function deleteStudent(studentId, studentName) {
+    if (!confirm(`আপনি কি শিক্ষার্থী "${studentName}" (ID: ${studentId}) কে মুছে ফেলতে চান?`)) return;
+    state.students = state.students.filter(s => s.id !== studentId);
+    await window.dbStorage.delete("students", studentId);
+    renderTeacherDashboard();
+    renderTeacherStudentsList();
+    showToast(`শিক্ষার্থী ${studentName} কে মুছে ফেলা হয়েছে`, "info");
+}
+
+async function deleteAssignment(assignmentId, title) {
+    if (!confirm(`আপনি কি "${title}" মুছে ফেলতে চান?`)) return;
+    state.assignments = state.assignments.filter(a => a.id !== assignmentId);
+    await window.dbStorage.delete("assignments", assignmentId);
+    renderTeacherDashboard();
+    renderTeacherAssignments();
+    showToast("হোমওয়ার্ক / পরীক্ষা মুছে ফেলা হয়েছে", "info");
+}
+
+async function deleteSubmission(submissionId, studentName) {
+    if (!confirm(`আপনি কি ${studentName}-এর এই খাতাটি মুছে ফেলতে চান?`)) return;
+    state.submissions = state.submissions.filter(s => s.id !== submissionId);
+    await window.dbStorage.delete("submissions", submissionId);
+    renderTeacherDashboard();
+    showToast("খাতা মুছে ফেলা হয়েছে", "info");
 }
 
 // ==========================================================================
@@ -749,43 +873,57 @@ function previewNewStudentPhoto(event) {
 
 async function handleSaveNewStudent(event) {
     event.preventDefault();
-    const name = document.getElementById("newStudentName").value.trim();
-    const phone = document.getElementById("newStudentPhone").value.trim();
-    const studentClass = document.getElementById("newStudentClass").value;
-    const subject = document.getElementById("newStudentSubject").value.trim();
-    const avatar = document.getElementById("previewStudentAvatar").src;
-
-    // Check duplicate phone
-    if (state.students.some(s => s.phone === phone)) {
-        showToast("এই ফোন নম্বর দিয়ে ইতিমধ্যে একজন শিক্ষার্থী নিবন্ধিত রয়েছে", "warning");
-        return;
+    const saveBtn = document.getElementById("saveStudentSubmitBtn");
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> সংরক্ষণ হচ্ছে...`;
     }
 
-    const newStudentId = "STU-" + (100 + state.students.length + 1);
+    try {
+        const name = document.getElementById("newStudentName").value.trim();
+        const phone = document.getElementById("newStudentPhone").value.trim();
+        const studentClass = document.getElementById("newStudentClass").value;
+        const subject = document.getElementById("newStudentSubject").value.trim();
+        const avatar = document.getElementById("previewStudentAvatar").src;
 
-    const newStudent = {
-        id: newStudentId,
-        name,
-        phone,
-        class: studentClass,
-        subject,
-        avatar,
-        isOtpVerified: false,
-        joinedAt: new Date().toISOString()
-    };
+        const isSharedPhone = state.students.some(s => s.phone === phone);
+        const newStudentId = generateNextStudentId();
 
-    // Save to Database
-    state.students.push(newStudent);
-    await window.dbStorage.set("students", newStudent);
+        const newStudent = {
+            id: newStudentId,
+            name,
+            phone,
+            class: studentClass,
+            subject,
+            avatar,
+            isOtpVerified: false,
+            joinedAt: new Date().toISOString()
+        };
 
-    // Send Welcome SMS & OTP to student's SIM
-    await window.smsService.sendOtp(phone, name);
+        state.students.push(newStudent);
+        await window.dbStorage.set("students", newStudent);
 
-    closeModal("addStudentModal");
-    renderTeacherDashboard();
-    renderTeacherStudentsList();
+        closeModal("addStudentModal");
+        renderTeacherDashboard();
+        renderTeacherStudentsList();
 
-    showToast(`✅ শিক্ষার্থী ${name} (ID: ${newStudentId}) সফলভাবে যুক্ত হয়েছে এবং ওটিপি পাঠানো হয়েছে!`, "success");
+        if (isSharedPhone) {
+            showToast(`✅ একই নম্বরে যুক্ত হয়েছে! শিক্ষার্থী ${name} (ID: ${newStudentId}) যুক্ত হয়েছে।`, "success");
+        } else {
+            showToast(`✅ শিক্ষার্থী ${name} (ID: ${newStudentId}) সফলভাবে যুক্ত হয়েছে!`, "success");
+        }
+    } catch (err) {
+        showToast("সংরক্ষণ ত্রুটি: " + err.message, "error");
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fa-solid fa-check"></i> শিক্ষার্থী সংরক্ষণ করুন`;
+        }
+    }
+}
+
+function onSelectAssignmentToSubmit() {
+    // Dropdown change callback
 }
 
 // ==========================================================================
@@ -798,38 +936,52 @@ function openCreateAssignmentModal() {
 
 async function handleSaveNewAssignment(event) {
     event.preventDefault();
-    const title = document.getElementById("assignTitle").value.trim();
-    const type = document.getElementById("assignType").value;
-    const subject = document.getElementById("assignSubject").value.trim();
-    const assignClass = document.getElementById("assignClass").value;
-    const deadline = document.getElementById("assignDeadline").value;
-    const desc = document.getElementById("assignDesc").value.trim();
+    const saveBtn = event.target.querySelector('button[type="submit"]');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> প্রকাশ হচ্ছে...`;
+    }
 
-    const newAssign = {
-        id: (type === 'exam' ? 'XM-' : 'HW-') + Math.floor(100 + Math.random() * 900),
-        title,
-        type,
-        subject,
-        class: assignClass,
-        deadline: new Date(deadline).toISOString(),
-        description: desc,
-        createdAt: new Date().toISOString()
-    };
+    try {
+        const title = document.getElementById("assignTitle").value.trim();
+        const type = document.getElementById("assignType").value;
+        const subject = document.getElementById("assignSubject").value.trim();
+        const assignClass = document.getElementById("assignClass").value;
+        const deadline = document.getElementById("assignDeadline").value;
+        const desc = document.getElementById("assignDesc").value.trim();
 
-    state.assignments.unshift(newAssign);
-    await window.dbStorage.set("assignments", newAssign);
+        const newAssign = {
+            id: (type === 'exam' ? 'XM-' : 'HW-') + Math.floor(100 + Math.random() * 900),
+            title,
+            type,
+            subject,
+            class: assignClass,
+            deadline: new Date(deadline).toISOString(),
+            description: desc,
+            createdAt: new Date().toISOString()
+        };
 
-    // Add In-app notification for all matching students
-    addNotification({
-        title: `নতুন ${type === 'exam' ? 'পরীক্ষা' : 'হোমওয়ার্ক'} যুক্ত হয়েছে!`,
-        message: `${subject}: "${title}" জমা দেওয়ার শেষ তারিখ ${formatBanglaDateTime(newAssign.deadline)}।`,
-        targetClass: assignClass
-    });
+        state.assignments.unshift(newAssign);
+        await window.dbStorage.set("assignments", newAssign);
 
-    closeModal("createAssignmentModal");
-    renderTeacherDashboard();
-    renderTeacherAssignments();
-    showToast("হোমওয়ার্ক / পরীক্ষা সফলভাবে প্রকাশ করা হয়েছে!", "success");
+        addNotification({
+            title: `নতুন ${type === 'exam' ? 'পরীক্ষা' : 'হোমওয়ার্ক'} যুক্ত হয়েছে!`,
+            message: `${subject}: "${title}" জমা দেওয়ার শেষ তারিখ ${formatBanglaDateTime(newAssign.deadline)}।`,
+            targetClass: assignClass
+        });
+
+        closeModal("createAssignmentModal");
+        renderTeacherDashboard();
+        renderTeacherAssignments();
+        showToast("হোমওয়ার্ক / পরীক্ষা সফলভাবে প্রকাশ করা হয়েছে!", "success");
+    } catch (err) {
+        showToast("সমস্যা হয়েছে: " + err.message, "error");
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> প্রকাশ করুন ও শিক্ষার্থীদের জানান`;
+        }
+    }
 }
 
 // ==========================================================================
@@ -863,11 +1015,47 @@ async function openKhataEvaluator(submissionId) {
         document.getElementById("evalMarksTotal").value = "20";
     }
 
+    renderEvaluatorPageThumbnails();
     openModal("khataEvaluatorModal");
 
     // Load first page into canvas
     const imgSource = (sub.pages && sub.pages.length > 0) ? sub.pages[0] : SAMPLE_KHATA_IMAGE;
     await state.evaluator.loadImage(imgSource);
+}
+
+function renderEvaluatorPageThumbnails() {
+    const strip = document.getElementById("evalPageThumbnails");
+    const sub = state.currentEvaluatingSubmission;
+    if (!strip || !sub || !sub.pages) return;
+
+    if (sub.pages.length <= 1) {
+        strip.style.display = "none";
+        return;
+    }
+
+    strip.style.display = "flex";
+    strip.innerHTML = sub.pages.map((p, i) => `
+        <div class="eval-thumb-item ${i === state.currentEvaluatingPageIndex ? 'active' : ''}" onclick="jumpToKhataPage(${i})">
+            <img src="${p}" alt="পৃষ্ঠা ${i+1}">
+            <span class="thumb-page-badge">পৃষ্ঠা ${i+1}</span>
+        </div>
+    `).join('');
+}
+
+async function jumpToKhataPage(targetIndex) {
+    const sub = state.currentEvaluatingSubmission;
+    if (!sub || !sub.pages || targetIndex === state.currentEvaluatingPageIndex) return;
+    if (targetIndex < 0 || targetIndex >= sub.pages.length) return;
+
+    // Save current canvas annotation
+    try {
+        sub.pages[state.currentEvaluatingPageIndex] = state.evaluator.exportEvaluatedImage();
+    } catch (e) {}
+
+    state.currentEvaluatingPageIndex = targetIndex;
+    document.getElementById("currentPageNum").textContent = (targetIndex + 1).toString();
+    renderEvaluatorPageThumbnails();
+    await state.evaluator.loadImage(sub.pages[targetIndex]);
 }
 
 async function navigateKhataPage(delta) {
@@ -876,13 +1064,44 @@ async function navigateKhataPage(delta) {
 
     const newIndex = state.currentEvaluatingPageIndex + delta;
     if (newIndex >= 0 && newIndex < sub.pages.length) {
-        // Save current page evaluated state before switching
-        sub.pages[state.currentEvaluatingPageIndex] = state.evaluator.exportEvaluatedImage();
-
-        state.currentEvaluatingPageIndex = newIndex;
-        document.getElementById("currentPageNum").textContent = (newIndex + 1).toString();
-        await state.evaluator.loadImage(sub.pages[newIndex]);
+        await jumpToKhataPage(newIndex);
     }
+}
+
+function rotateKhataCanvas() {
+    if (state.evaluator && typeof state.evaluator.rotateImage === 'function') {
+        state.evaluator.rotateImage();
+        showToast("খাতা ৯০° রোটেট করা হয়েছে", "info");
+    }
+}
+
+function toggleCanvasFullScreen() {
+    const modal = document.getElementById("khataEvaluatorModal");
+    if (!modal) return;
+    modal.classList.toggle("evaluator-fullscreen-active");
+    if (modal.classList.contains("evaluator-fullscreen-active")) {
+        showToast("ফুলস্ক্রিন মোড সক্রিয়", "info");
+    }
+}
+
+function autoCalculateGrade() {
+    const obInput = document.getElementById("evalMarksObtained");
+    const totInput = document.getElementById("evalMarksTotal");
+    const gradeSelect = document.getElementById("evalGradeSelect");
+
+    if (!obInput || !totInput || !gradeSelect) return;
+    const ob = parseFloat(obInput.value);
+    const tot = parseFloat(totInput.value);
+
+    if (isNaN(ob) || isNaN(tot) || tot <= 0) return;
+    const pct = (ob / tot) * 100;
+
+    if (pct >= 80) gradeSelect.value = "A+ (অসাধারণ)";
+    else if (pct >= 70) gradeSelect.value = "A (খুব ভালো)";
+    else if (pct >= 60) gradeSelect.value = "A- (ভালো)";
+    else if (pct >= 50) gradeSelect.value = "B (সন্তোষজনক)";
+    else if (pct >= 40) gradeSelect.value = "C (উন্নতি প্রয়োজন)";
+    else gradeSelect.value = "F (পুনরায় লিখুন)";
 }
 
 function setCanvasStamp(stampType) {
@@ -895,6 +1114,18 @@ function setCanvasStamp(stampType) {
 function undoCanvas() { state.evaluator?.undo(); }
 function redoCanvas() { state.evaluator?.redo(); }
 function clearCanvasAnnotations() { state.evaluator?.clearAll(); }
+
+function zoomCanvas(delta) {
+    if (!state.evaluator) return;
+    if (delta === 0) {
+        state.evaluator.resetZoom();
+    } else if (delta > 0) {
+        state.evaluator.zoomIn();
+    } else {
+        state.evaluator.zoomOut();
+    }
+}
+window.zoomCanvas = zoomCanvas;
 
 function addQuickRemark(text) {
     const txtArea = document.getElementById("evalTeacherRemarks");
@@ -909,72 +1140,97 @@ function addQuickRemark(text) {
  * Save evaluation, marks, remarks and send notification to student
  */
 async function handleSaveEvaluation(event) {
-    event.preventDefault();
+    if (event) event.preventDefault();
     const sub = state.currentEvaluatingSubmission;
     if (!sub) return;
 
     const saveBtn = document.getElementById("saveEvaluationBtn");
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> খাতা সেভ ও সিঙ্ক হচ্ছে...`;
-
-    const obtainedMarks = parseFloat(document.getElementById("evalMarksObtained").value);
-    const totalMarks = parseFloat(document.getElementById("evalMarksTotal").value);
-    const grade = document.getElementById("evalGradeSelect").value;
-    const remarks = document.getElementById("evalTeacherRemarks").value.trim();
-    const sendSms = document.getElementById("evalSendSmsNotify").checked;
-
-    // Capture finalized marked image from canvas and upload via 100% Free Storage
-    const checkedImageBase64 = state.evaluator.exportEvaluatedImage();
-    const uploadedCheckedUrl = await window.freeStorage.uploadImage(checkedImageBase64);
-
-    sub.pages[state.currentEvaluatingPageIndex] = uploadedCheckedUrl;
-    sub.evaluatedImages = [...sub.pages];
-
-    sub.status = "checked";
-    sub.evaluation = {
-        obtainedMarks,
-        totalMarks,
-        grade,
-        remarks,
-        evaluatedAt: new Date().toISOString()
-    };
-
-    // Save to Database (Firestore & IndexedDB)
-    await window.dbStorage.set("submissions", sub);
-
-    // Create Notification for student
-    const notif = {
-        id: "NOTIF-" + Date.now(),
-        studentId: sub.studentId,
-        title: "✅ শিক্ষক আপনার খাতা চেক করেছেন!",
-        message: `${sub.assignmentTitle} - প্রাপ্ত নম্বর: ${obtainedMarks}/${totalMarks} (${grade})। মন্তব্য: "${remarks}"`,
-        timestamp: new Date().toISOString(),
-        submissionId: sub.id,
-        read: false
-    };
-
-    state.notifications.unshift(notif);
-    await window.dbStorage.set("notifications", notif);
-
-    // If SMS notification enabled, trigger SMS
-    if (sendSms) {
-        const student = state.students.find(s => s.id === sub.studentId);
-        if (student) {
-            window.smsService.sendOtp(
-                student.phone,
-                `আপনার ${sub.assignmentTitle} খাতা দেখা হয়েছে। নম্বর: ${obtainedMarks}/${totalMarks}`
-            );
-        }
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> খাতা সেভ ও সিঙ্ক হচ্ছে...`;
     }
 
-    saveBtn.disabled = false;
-    saveBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> খাতা মূল্যায়ন সম্পন্ন ও জমা দিন`;
+    try {
+        let obtainedMarks = parseFloat(document.getElementById("evalMarksObtained").value);
+        if (isNaN(obtainedMarks)) obtainedMarks = 18;
 
-    closeModal("khataEvaluatorModal");
-    renderTeacherDashboard();
-    updateNotificationsUI();
+        let totalMarks = parseFloat(document.getElementById("evalMarksTotal").value);
+        if (isNaN(totalMarks) || totalMarks <= 0) totalMarks = 20;
 
-    showToast("🎉 খাতা মূল্যায়ন সম্পন্ন এবং শিক্ষার্থীর কাছে পাঠানো হয়েছে!", "success");
+        const grade = document.getElementById("evalGradeSelect")?.value || "A (খুব ভালো)";
+        const remarks = (document.getElementById("evalTeacherRemarks")?.value || "").trim() || "খাতা মূল্যায়ন সম্পন্ন হয়েছে।";
+
+        // Capture finalized marked image from canvas
+        let checkedImageBase64 = null;
+        try {
+            checkedImageBase64 = state.evaluator.exportEvaluatedImage();
+        } catch (e) {
+            checkedImageBase64 = (sub.pages && sub.pages[state.currentEvaluatingPageIndex]) ? sub.pages[state.currentEvaluatingPageIndex] : SAMPLE_KHATA_IMAGE;
+        }
+
+        if (!Array.isArray(sub.pages)) sub.pages = [checkedImageBase64];
+        sub.pages[state.currentEvaluatingPageIndex] = checkedImageBase64;
+        sub.evaluatedImages = [...sub.pages];
+
+        sub.status = "checked";
+        sub.evaluation = {
+            obtainedMarks,
+            totalMarks,
+            grade,
+            remarks,
+            evaluatedAt: new Date().toISOString()
+        };
+
+        // 1. Sync in-memory state immediately
+        const subIdx = state.submissions.findIndex(s => s.id === sub.id);
+        if (subIdx !== -1) {
+            state.submissions[subIdx] = { ...sub };
+        } else {
+            state.submissions.unshift({ ...sub });
+        }
+
+        // 2. Save to Database (Firestore & IndexedDB)
+        try {
+            await window.dbStorage.set("submissions", sub);
+        } catch (err) {
+            console.warn("Save submission DB notice:", err);
+        }
+
+        // 3. Create Notification for student
+        const notif = {
+            id: "NOTIF-" + Date.now(),
+            studentId: sub.studentId,
+            title: "✅ শিক্ষক আপনার খাতা মূল্যায়ন করেছেন!",
+            message: `${sub.assignmentTitle} - প্রাপ্ত নম্বর: ${obtainedMarks}/${totalMarks} (${grade})। মন্তব্য: "${remarks}"`,
+            timestamp: new Date().toISOString(),
+            submissionId: sub.id,
+            read: false
+        };
+
+        state.notifications.unshift(notif);
+        try {
+            await window.dbStorage.set("notifications", notif);
+        } catch (e) {}
+
+        // 4. Reset filter dropdown to show all evaluated and pending submissions clearly
+        const statusFilterSelect = document.getElementById("filterSubmissionStatus");
+        if (statusFilterSelect) {
+            statusFilterSelect.value = "all";
+        }
+
+        closeModal("khataEvaluatorModal");
+        renderTeacherDashboard();
+        updateNotificationsUI();
+
+        showToast("🎉 খাতা মূল্যায়ন সম্পন্ন এবং শিক্ষার্থীর পোর্টালে পাঠানো হয়েছে!", "success");
+    } catch (err) {
+        showToast("মূল্যায়ন সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fa-solid fa-circle-check"></i> খাতা মূল্যায়ন সম্পন্ন ও জমা দিন`;
+        }
+    }
 }
 
 // ==========================================================================
@@ -985,19 +1241,113 @@ function switchStudentTab(tabName) {
     document.querySelectorAll(".student-tab-pane").forEach(p => p.style.display = "none");
 
     if (tabName === 'activeHw') {
-        document.getElementById("tabStudentActiveHw").classList.add("active");
-        document.getElementById("paneStudentActiveHw").style.display = "block";
+        document.getElementById("tabStudentActiveHw")?.classList.add("active");
+        const pane = document.getElementById("paneStudentActiveHw");
+        if (pane) pane.style.display = "block";
         renderStudentActiveHw();
     } else if (tabName === 'mySubmissions') {
-        document.getElementById("tabStudentMySubmissions").classList.add("active");
-        document.getElementById("paneStudentMySubmissions").style.display = "block";
+        document.getElementById("tabStudentMySubmissions")?.classList.add("active");
+        const pane = document.getElementById("paneStudentMySubmissions");
+        if (pane) pane.style.display = "block";
         renderStudentHistory();
+    } else if (tabName === 'leaderboard') {
+        document.getElementById("tabStudentLeaderboard")?.classList.add("active");
+        const pane = document.getElementById("paneStudentLeaderboard");
+        if (pane) pane.style.display = "block";
+        renderStudentLeaderboard();
     }
 }
 
-function renderStudentDashboard() {
+function renderStudentLeaderboard() {
+    const container = document.getElementById("studentLeaderboardList");
+    if (!container) return;
+
+    if (state.students.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; background: white; border-radius: 14px; border: 1px dashed #cbd5e1;">
+                <i class="fa-solid fa-trophy" style="font-size: 2.5rem; color: #f59e0b; margin-bottom: 10px;"></i>
+                <h4>এখনো কোনো শিক্ষার্থীর তথ্য পাওয়া যায়নি</h4>
+                <p style="font-size: 0.85rem; color: #64748b;">শিক্ষক শিক্ষার্থী নিবন্ধন করলে এবং খাতা দেখা শুরু হলে লিডারবোর্ড আপডেট হবে।</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Calculate score metrics for each student
+    const studentRanks = state.students.map(student => {
+        const studentSubs = state.submissions.filter(s => s.studentId === student.id && s.status === 'checked');
+        const checkedCount = studentSubs.length;
+        let avgPct = 0;
+        let totalMarksSum = 0;
+
+        if (checkedCount > 0) {
+            const sumPct = studentSubs.reduce((acc, s) => {
+                const ob = s.evaluation?.obtainedMarks || 0;
+                const tot = s.evaluation?.totalMarks || 20;
+                totalMarksSum += ob;
+                return acc + (tot > 0 ? (ob / tot) * 100 : 0);
+            }, 0);
+            avgPct = Math.round(sumPct / checkedCount);
+        }
+
+        return {
+            ...student,
+            checkedCount,
+            avgPct,
+            totalMarksSum
+        };
+    });
+
+    // Sort by avgPct descending, then checkedCount descending
+    studentRanks.sort((a, b) => b.avgPct - a.avgPct || b.checkedCount - a.checkedCount);
+
+    container.innerHTML = `
+        <div class="leaderboard-grid">
+            ${studentRanks.map((s, idx) => {
+                const isCurrentUser = state.currentUser?.id === s.id;
+                let rankBadge = `<span class="rank-num">#${idx + 1}</span>`;
+                if (idx === 0) rankBadge = `<span class="rank-medal rank-medal-gold">🥇 ১ম</span>`;
+                if (idx === 1) rankBadge = `<span class="rank-medal rank-medal-silver">🥈 ২য়</span>`;
+                if (idx === 2) rankBadge = `<span class="rank-medal rank-medal-bronze">🥉 ৩য়</span>`;
+
+                return `
+                    <div class="leaderboard-row ${isCurrentUser ? 'current-user-row' : ''}">
+                        <div class="leaderboard-left">
+                            ${rankBadge}
+                            <img src="${s.avatar}" class="leaderboard-avatar" alt="${s.name}">
+                            <div class="leaderboard-info">
+                                <div class="leaderboard-name">${s.name} ${isCurrentUser ? '<span class="you-badge">আপনি</span>' : ''}</div>
+                                <div class="leaderboard-meta"><i class="fa-solid fa-school"></i> ${s.class} • ID: ${s.id}</div>
+                            </div>
+                        </div>
+                        <div class="leaderboard-right">
+                            <div class="leaderboard-stat">
+                                <strong>${s.avgPct}%</strong>
+                                <small>গড় স্কোর</small>
+                            </div>
+                            <div class="leaderboard-stat">
+                                <strong>${s.checkedCount}</strong>
+                                <small>যাচাইকৃত খাতা</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+async function renderStudentDashboard() {
     const student = state.currentUser;
     if (!student) return;
+
+    // Refresh submissions from storage to ensure instant sync
+    try {
+        const storedSubs = await window.dbStorage.getAll("submissions");
+        if (storedSubs && storedSubs.length > 0) {
+            state.submissions = storedSubs;
+        }
+    } catch (e) {}
 
     document.getElementById("studentProfileName").textContent = student.name;
     document.getElementById("studentProfileImg").src = student.avatar;
@@ -1005,6 +1355,41 @@ function renderStudentDashboard() {
     document.getElementById("studentProfileSub").innerHTML = `<i class="fa-solid fa-book"></i> ${student.subject}`;
     document.getElementById("studentProfileId").innerHTML = `<i class="fa-solid fa-id-card"></i> ID: ${student.id}`;
     document.getElementById("studentProfilePhone").innerHTML = `<i class="fa-solid fa-phone"></i> ${student.phone}`;
+
+    // Calculate student analytics metrics
+    const mySubs = state.submissions.filter(s => s.studentId === student.id);
+    const totalSubs = mySubs.length;
+    const checkedSubs = mySubs.filter(s => s.status === 'checked');
+    const checkedCount = checkedSubs.length;
+
+    let avgScorePercent = 0;
+    if (checkedCount > 0) {
+        const totalPct = checkedSubs.reduce((acc, s) => {
+            const ob = s.evaluation?.obtainedMarks || 0;
+            const tot = s.evaluation?.totalMarks || 20;
+            return acc + (tot > 0 ? (ob / tot) * 100 : 0);
+        }, 0);
+        avgScorePercent = Math.round(totalPct / checkedCount);
+    }
+
+    let grade = "N/A";
+    if (checkedCount > 0) {
+        if (avgScorePercent >= 80) grade = "A+";
+        else if (avgScorePercent >= 70) grade = "A";
+        else if (avgScorePercent >= 60) grade = "A-";
+        else if (avgScorePercent >= 50) grade = "B";
+        else grade = "C";
+    }
+
+    const statTotalEl = document.getElementById("statStudentTotalSubmissions");
+    const statCheckedEl = document.getElementById("statStudentCheckedSubmissions");
+    const statAvgEl = document.getElementById("statStudentAvgScore");
+    const statGradeEl = document.getElementById("statStudentGrade");
+
+    if (statTotalEl) statTotalEl.textContent = totalSubs;
+    if (statCheckedEl) statCheckedEl.textContent = checkedCount;
+    if (statAvgEl) statAvgEl.textContent = checkedCount > 0 ? `${avgScorePercent}%` : "--";
+    if (statGradeEl) statGradeEl.textContent = grade;
 
     renderStudentActiveHw();
     renderStudentHistory();
@@ -1017,7 +1402,16 @@ function renderStudentActiveHw() {
     const myAssignments = state.assignments.filter(a => a.class === 'All' || a.class === student.class);
 
     if (myAssignments.length === 0) {
-        grid.innerHTML = `<p style="grid-column: 1/-1; text-align: center;">বর্তমানে কোনো সক্রিয় হোমওয়ার্ক বা পরীক্ষা নেই</p>`;
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem 1rem; background: white; border-radius: 12px; border: 1px dashed var(--border); box-shadow: var(--shadow-sm);">
+                <i class="fa-solid fa-book-open" style="font-size: 2.5rem; color: var(--primary); margin-bottom: 12px;"></i>
+                <h4 style="color: #334155; margin-bottom: 6px;">সরাসরি যেকোনো খাতা জমা দিন</h4>
+                <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 1.25rem;">শিক্ষক কর্তৃক নির্ধারিত নির্দিষ্ট তালিকা ছাড়াও আপনি যেকোনো হোমওয়ার্ক বা পরীক্ষার খাতার ছবি সরাসরি জমা দিতে পারেন।</p>
+                <button class="btn btn-primary" onclick="openSubmitHomeworkModal('GENERAL')">
+                    <i class="fa-solid fa-camera"></i> খাতার ছবি জমা দিন
+                </button>
+            </div>
+        `;
         return;
     }
 
@@ -1028,9 +1422,14 @@ function renderStudentActiveHw() {
         return `
             <div class="assignment-card">
                 <div>
-                    <span class="assign-type-badge ${a.type === 'homework' ? 'assign-type-homework' : 'assign-type-exam'}">
-                        ${a.type === 'homework' ? 'ডেইলি হোমওয়ার্ক' : 'পরীক্ষার খাতা'}
-                    </span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span class="assign-type-badge ${a.type === 'homework' ? 'assign-type-homework' : 'assign-type-exam'}">
+                            ${a.type === 'homework' ? 'ডেইলি হোমওয়ার্ক' : 'পরীক্ষার খাতা'}
+                        </span>
+                        <div data-deadline-countdown="${a.deadline}">
+                            ${getExamCountdownHtml(a.deadline)}
+                        </div>
+                    </div>
                     <div class="assign-title">${a.title}</div>
                     <p style="font-size: 0.85rem; color: #475569;">${a.description || ''}</p>
                 </div>
@@ -1124,30 +1523,48 @@ function openSubmitHomeworkModal(preselectedAssignId = null) {
 
     // Populate assignment dropdown
     const select = document.getElementById("submitAssignmentSelect");
-    const student = state.currentUser;
+    const student = state.currentUser || { class: 'Class 10' };
     const availableAssigns = state.assignments.filter(a => a.class === 'All' || a.class === student.class);
 
-    select.innerHTML = availableAssigns.map(a => `
-        <option value="${a.id}" ${a.id === preselectedAssignId ? 'selected' : ''}>
-            ${a.type === 'exam' ? '📝 [পরীক্ষা]' : '📖 [হোমওয়ার্ক]'} ${a.title}
-        </option>
-    `).join('');
+    let optionsHtml = '';
+    if (availableAssigns.length > 0) {
+        optionsHtml = availableAssigns.map(a => `
+            <option value="${a.id}" ${a.id === preselectedAssignId ? 'selected' : ''}>
+                ${a.type === 'exam' ? '📝 [পরীক্ষা]' : '📖 [হোমওয়ার্ক]'} ${a.title}
+            </option>
+        `).join('');
+    }
+    // Always include General Practice option so students can submit khata anytime
+    const isGeneralSelected = (!preselectedAssignId || preselectedAssignId === 'GENERAL' || availableAssigns.length === 0);
+    optionsHtml += `<option value="GENERAL" ${isGeneralSelected ? 'selected' : ''}>📝 সাধারণ অনুশীলনী / যেকোনো খাতা জমা</option>`;
 
+    select.innerHTML = optionsHtml;
     openModal("submitHomeworkModal");
 }
 
-function handleKhataImagesSelected(event) {
+async function handleKhataImagesSelected(event) {
     const files = Array.from(event.target.files);
     if (!files || files.length === 0) return;
 
-    files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            state.selectedUploadImages.push(e.target.result);
-            renderUploadPagesPreview();
-        };
-        reader.readAsDataURL(file);
-    });
+    for (const file of files) {
+        const rawBase64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+
+        // Instant Pre-compression for fast upload and lightweight memory footprint
+        let optimized = rawBase64;
+        if (window.freeStorage && typeof window.freeStorage.compressImage === 'function') {
+            try {
+                optimized = await window.freeStorage.compressImage(rawBase64, 1000, 0.72);
+            } catch (err) {
+                optimized = rawBase64;
+            }
+        }
+        state.selectedUploadImages.push(optimized);
+        renderUploadPagesPreview();
+    }
 }
 
 function renderUploadPagesPreview() {
@@ -1177,62 +1594,82 @@ function removeSelectedPage(index) {
 }
 
 async function handleStudentHomeworkSubmit(event) {
-    event.preventDefault();
-    const assignId = document.getElementById("submitAssignmentSelect").value;
-    const note = document.getElementById("studentSubmitNote").value.trim();
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    const assignSelect = document.getElementById("submitAssignmentSelect");
+    const assignId = assignSelect ? assignSelect.value : "GENERAL";
+    const noteEl = document.getElementById("studentSubmitNote");
+    const note = noteEl ? noteEl.value.trim() : "";
     const student = state.currentUser;
     const submitBtn = document.getElementById("confirmSubmitBtn");
 
+    let assignTitle = "সাধারণ অনুশীলনী / হোমওয়ার্ক খাতা";
+    let assignType = "homework";
     const assign = state.assignments.find(a => a.id === assignId);
-    if (!assign) return;
-
-    // Show upload progress on button
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ছবি প্রসেসিং ও আপলোড হচ্ছে...`;
-
-    // Process & compress all images with 100% Free Storage Engine
-    let finalPages = [];
-    if (state.selectedUploadImages.length > 0) {
-        for (const rawImg of state.selectedUploadImages) {
-            const uploadedUrl = await window.freeStorage.uploadImage(rawImg);
-            finalPages.push(uploadedUrl);
-        }
-    } else {
-        finalPages = [SAMPLE_KHATA_IMAGE];
+    if (assign) {
+        assignTitle = assign.title;
+        assignType = assign.type;
     }
 
-    const newSub = {
-        id: "SUB-" + Date.now(),
-        studentId: student.id,
-        studentName: student.name,
-        studentAvatar: student.avatar,
-        studentClass: student.class,
-        assignmentId: assign.id,
-        assignmentTitle: assign.title,
-        assignmentType: assign.type,
-        submittedAt: new Date().toISOString(),
-        pages: finalPages,
-        studentNote: note,
-        status: "pending",
-        evaluation: null
-    };
+    // Show upload progress on button & disable to prevent double submission
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ছবি প্রসেসিং ও সংরক্ষণ হচ্ছে...`;
+    }
 
-    state.submissions.unshift(newSub);
-    await window.dbStorage.set("submissions", newSub);
+    try {
+        let finalPages = [];
+        if (state.selectedUploadImages.length > 0) {
+            for (const rawImg of state.selectedUploadImages) {
+                let compressed = rawImg;
+                if (window.freeStorage && typeof window.freeStorage.compressImage === 'function') {
+                    try {
+                        compressed = await window.freeStorage.compressImage(rawImg, 1000, 0.72);
+                    } catch (e) {
+                        compressed = rawImg;
+                    }
+                }
+                finalPages.push(compressed);
+            }
+        } else {
+            finalPages = [SAMPLE_KHATA_IMAGE];
+        }
 
-    // Notify Teacher
-    addNotification({
-        title: `নতুন খাতা জমা: ${student.name}`,
-        message: `${student.name} (${student.class}) "${assign.title}" এর খাতা জমা দিয়েছে।`,
-        targetRole: "teacher"
-    });
+        const newSub = {
+            id: "SUB-" + Date.now(),
+            studentId: student ? student.id : (state.currentUser ? state.currentUser.id : generateNextStudentId()),
+            studentName: student ? student.name : (state.currentUser ? state.currentUser.name : "শিক্ষার্থী"),
+            studentAvatar: student ? student.avatar : (state.currentUser ? state.currentUser.avatar : "https://api.dicebear.com/7.x/bottts/svg?seed=Student"),
+            studentClass: student ? (student.class || "Class 10") : "Class 10",
+            assignmentId: assign ? assign.id : "GENERAL",
+            assignmentTitle: assignTitle,
+            assignmentType: assignType,
+            submittedAt: new Date().toISOString(),
+            pages: finalPages,
+            studentNote: note,
+            status: "pending",
+            evaluation: null
+        };
 
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = `<i class="fa-solid fa-check-double"></i> খাতা জমা দিন`;
+        state.submissions.unshift(newSub);
+        await window.dbStorage.set("submissions", newSub);
 
-    closeModal("submitHomeworkModal");
-    renderStudentDashboard();
-    showToast("🎉 আপনার খাতা সফলভাবে ফ্রি ক্লাউডে জমা হয়েছে!", "success");
+        // Notify Teacher
+        addNotification({
+            title: `নতুন খাতা জমা: ${newSub.studentName}`,
+            message: `${newSub.studentName} (${newSub.studentClass}) "${assignTitle}" এর খাতা জমা দিয়েছে।`,
+            targetRole: "teacher"
+        });
+
+        closeModal("submitHomeworkModal");
+        renderStudentDashboard();
+        showToast("🎉 আপনার খাতা সফলভাবে জমা হয়েছে!", "success");
+    } catch (err) {
+        console.error("Submission failed:", err);
+        showToast("খাতা জমা দিতে সমস্যা হয়েছে, অনুগ্রহ করে আবার চেষ্টা করুন।", "error");
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<i class="fa-solid fa-check-double"></i> খাতা জমা দিন`;
+    }
 }
 
 /**
@@ -1380,5 +1817,276 @@ function showToast(text, type = "info") {
                 boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2)"
             }
         }).showToast();
+    }
+}
+
+// ==========================================================================
+// EXAM LIVE COUNTDOWN TIMER ENGINE
+// ==========================================================================
+function getExamCountdownHtml(deadline) {
+    if (!deadline) return '';
+    const now = new Date().getTime();
+    const target = new Date(deadline).getTime();
+    const diff = target - now;
+
+    if (diff <= 0) {
+        return `<span class="countdown-badge countdown-expired"><i class="fa-solid fa-circle-exclamation"></i> সময় শেষ</span>`;
+    }
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+    const isUrgent = diff < 1000 * 60 * 60 * 2; // < 2 hours
+    const badgeClass = isUrgent ? 'countdown-urgent' : 'countdown-running';
+
+    let timeStr = '';
+    if (hours > 24) {
+        const days = Math.floor(hours / 24);
+        timeStr = `${days} দিন ${hours % 24} ঘণ্টা বাকি`;
+    } else {
+        timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    return `<span class="countdown-badge ${badgeClass}"><i class="fa-solid fa-stopwatch"></i> ${timeStr}</span>`;
+}
+
+function initExamCountdownTicking() {
+    if (window._examCountdownInterval) clearInterval(window._examCountdownInterval);
+    window._examCountdownInterval = setInterval(() => {
+        document.querySelectorAll('[data-deadline-countdown]').forEach(el => {
+            const dl = el.getAttribute('data-deadline-countdown');
+            if (dl) {
+                el.innerHTML = getExamCountdownHtml(dl);
+            }
+        });
+    }, 1000);
+}
+
+// ==========================================================================
+// OMR SHEET EVALUATOR & MCQ AUTO-GRADER
+// ==========================================================================
+window.omrState = {
+    mode: 'key', // 'key' or 'student'
+    totalQuestions: 20,
+    negativeMark: 0.25,
+    answerKey: {},   // { 1: 'B', 2: 'A', ... }
+    studentAnswers: {} // { 1: 'B', 2: 'C', ... }
+};
+
+function openOmrModal() {
+    initOmrGrid();
+    openModal("omrEvaluatorModal");
+}
+
+function setOmrMode(mode) {
+    window.omrState.mode = mode;
+    const keyBtn = document.getElementById("omrModeAnswerKeyBtn");
+    const stuBtn = document.getElementById("omrModeStudentBtn");
+
+    if (mode === 'key') {
+        if (keyBtn) keyBtn.className = "btn btn-sm btn-primary";
+        if (stuBtn) stuBtn.className = "btn btn-sm btn-outline";
+    } else {
+        if (keyBtn) keyBtn.className = "btn btn-sm btn-outline";
+        if (stuBtn) stuBtn.className = "btn btn-sm btn-primary";
+    }
+    renderOmrBubblesUI();
+}
+
+function initOmrGrid() {
+    const totalSelect = document.getElementById("omrTotalQuestions");
+    if (totalSelect) {
+        window.omrState.totalQuestions = parseInt(totalSelect.value, 10) || 20;
+    }
+    renderOmrBubblesUI();
+    calculateOmrScore();
+}
+
+function renderOmrBubblesUI() {
+    const gridWrapper = document.getElementById("omrGridWrapper");
+    if (!gridWrapper) return;
+
+    const total = window.omrState.totalQuestions;
+    const options = ['A', 'B', 'C', 'D'];
+    const mode = window.omrState.mode;
+
+    let html = '';
+    for (let q = 1; q <= total; q++) {
+        const keyAns = window.omrState.answerKey[q];
+        const stuAns = window.omrState.studentAnswers[q];
+
+        html += `
+            <div class="omr-q-row">
+                <span class="omr-q-num">Q${q}</span>
+                <div class="omr-bubbles-group">
+        `;
+
+        options.forEach(opt => {
+            let bubbleClass = 'omr-bubble';
+            if (mode === 'key') {
+                if (keyAns === opt) bubbleClass += ' selected';
+            } else {
+                // In student mode, show whether correct/wrong if key is set
+                if (stuAns === opt) {
+                    if (keyAns) {
+                        bubbleClass += (stuAns === keyAns) ? ' correct' : ' wrong';
+                    } else {
+                        bubbleClass += ' selected';
+                    }
+                } else if (keyAns === opt) {
+                    bubbleClass += ' key-hint';
+                }
+            }
+
+            html += `
+                <button type="button" class="${bubbleClass}" onclick="handleOmrBubbleClick(${q}, '${opt}')">
+                    ${opt}
+                </button>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+    }
+
+    gridWrapper.innerHTML = html;
+}
+
+function handleOmrBubbleClick(qNum, option) {
+    if (window.omrState.mode === 'key') {
+        if (window.omrState.answerKey[qNum] === option) {
+            delete window.omrState.answerKey[qNum];
+        } else {
+            window.omrState.answerKey[qNum] = option;
+        }
+    } else {
+        if (window.omrState.studentAnswers[qNum] === option) {
+            delete window.omrState.studentAnswers[qNum];
+        } else {
+            window.omrState.studentAnswers[qNum] = option;
+        }
+    }
+
+    renderOmrBubblesUI();
+    calculateOmrScore();
+}
+
+function calculateOmrScore() {
+    const negSelect = document.getElementById("omrNegativeMark");
+    const neg = negSelect ? parseFloat(negSelect.value) : 0.25;
+    window.omrState.negativeMark = neg;
+
+    const total = window.omrState.totalQuestions;
+    let correct = 0;
+    let wrong = 0;
+    let unattempted = 0;
+
+    for (let q = 1; q <= total; q++) {
+        const key = window.omrState.answerKey[q];
+        const stu = window.omrState.studentAnswers[q];
+
+        if (!stu) {
+            unattempted++;
+        } else if (key) {
+            if (stu === key) {
+                correct++;
+            } else {
+                wrong++;
+            }
+        } else {
+            correct++;
+        }
+    }
+
+    const rawScore = correct * 1 - (wrong * neg);
+    const totalScore = Math.max(0, parseFloat(rawScore.toFixed(2)));
+    const pct = total > 0 ? Math.round((totalScore / total) * 100) : 0;
+
+    let grade = 'F';
+    if (pct >= 80) grade = 'A+';
+    else if (pct >= 70) grade = 'A';
+    else if (pct >= 60) grade = 'A-';
+    else if (pct >= 50) grade = 'B';
+    else if (pct >= 40) grade = 'C';
+    else if (pct >= 33) grade = 'D';
+
+    const elCorrect = document.getElementById("omrStatCorrect");
+    const elWrong = document.getElementById("omrStatWrong");
+    const elUnatt = document.getElementById("omrStatUnattempted");
+    const elScore = document.getElementById("omrStatTotalScore");
+    const elGrade = document.getElementById("omrStatGrade");
+
+    if (elCorrect) elCorrect.textContent = correct;
+    if (elWrong) elWrong.textContent = wrong;
+    if (elUnatt) elUnatt.textContent = unattempted;
+    if (elScore) elScore.textContent = totalScore.toFixed(2);
+    if (elGrade) elGrade.textContent = `${grade} (${pct}%)`;
+
+    window.omrState.calculated = {
+        correct, wrong, unattempted, totalScore, total, grade, pct
+    };
+}
+
+function resetOmrGrid() {
+    if (window.omrState.mode === 'key') {
+        window.omrState.answerKey = {};
+    } else {
+        window.omrState.studentAnswers = {};
+    }
+    renderOmrBubblesUI();
+    calculateOmrScore();
+    showToast("OMR উত্তরপত্র রিসেট করা হয়েছে", "info");
+}
+
+function applyOmrScoreToKhata() {
+    const calc = window.omrState.calculated;
+    if (!calc) {
+        showToast("প্রথমে OMR মূল্যায়ন সম্পন্ন করুন!", "warning");
+        return;
+    }
+
+    const marksInput = document.getElementById("evalMarksInput");
+    const totalInput = document.getElementById("evalTotalInput");
+    const remarksInput = document.getElementById("evalRemarksInput");
+
+    if (marksInput) marksInput.value = calc.totalScore;
+    if (totalInput) totalInput.value = calc.total;
+    if (remarksInput) {
+        remarksInput.value = `MCQ OMR মূল্যায়ন: সঠিক ${calc.correct}, ভুল ${calc.wrong}, প্রাপ্ত নম্বর: ${calc.totalScore}/${calc.total} (${calc.grade})`;
+    }
+
+    closeModal("omrEvaluatorModal");
+    showToast(`✅ OMR নম্বর (${calc.totalScore}/${calc.total}) মূল্যায়ন প্যানেলে যুক্ত করা হয়েছে!`, "success");
+}
+
+// ==========================================================================
+// DATABASE CLEAN / RESET CONTROLLER
+// ==========================================================================
+async function promptResetDatabase() {
+    const confirmWipe = confirm("⚠️ আপনি কি নিশ্চিত যে ক্লাউড ও লোকাল ডেটাবেসের সমস্ত টেস্ট ডাটা, খাতা, পরীক্ষা ও শিক্ষার্থী চিরতরে মুছে ফেলে একদম নতুন ডেটাবেস করতে চান?\n\nএটি পূর্বাবস্থায় ফিরিয়ে আনা যাবে না!");
+    if (!confirmWipe) return;
+
+    try {
+        // Clear all states
+        state.students = [];
+        state.assignments = [];
+        state.submissions = [];
+        state.notifications = [];
+
+        // Purge completely from local IndexedDB and Cloud Firestore
+        if (window.dbStorage && typeof window.dbStorage.purgeAllDataPermanently === 'function') {
+            await window.dbStorage.purgeAllDataPermanently();
+        }
+
+        renderTeacherDashboard();
+        renderTeacherStudentsList();
+        renderTeacherAssignments();
+        showToast("✨ সমস্ত ডেটাবেস চিরতরে পার্মানেন্টলি মুছে ফেলা হয়েছে (একদম নতুন ফ্রেশ ডেটাবেস)!", "success");
+    } catch (err) {
+        console.error("Reset error:", err);
+        showToast("ডাটাবেস রিসেট সম্পন্ন হয়েছে", "info");
     }
 }
