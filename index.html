@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EduCheck - ডিজিটাল খাতা মূল্যায়ন ও হোমওয়ার্ক পোর্টাল</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Toastify for sleek notifications -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="brand-logo" id="brandLogo">
+                <div class="logo-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+                <div class="logo-text">
+                    <span class="brand-name">Edu<span class="highlight">Check</span></span>
+                    <span class="brand-tagline">ডিজিটাল খাতা ও HW পোর্টাল</span>
+                </div>
+            </div>
+
+            <div class="nav-right">
+                <!-- Live Online / Database indicator -->
+                <div class="status-badge" id="storageModeBadge" title="বর্তমানে লোকাল ডাটাবেজে যুক্ত">
+                    <span class="pulse-dot"></span>
+                    <span class="badge-text" id="storageModeText">সিস্টেম একটিভ</span>
+                </div>
+
+                <!-- Notifications Button -->
+                <div class="nav-item notif-btn-wrapper" id="notifBtnWrapper" style="display: none;">
+                    <button class="icon-btn" id="notifBellBtn" title="বিজ্ঞপ্তি">
+                        <i class="fa-solid fa-bell"></i>
+                        <span class="notif-badge" id="notifBadge">0</span>
+                    </button>
+                    <!-- Notification Dropdown -->
+                    <div class="notif-dropdown" id="notifDropdown">
+                        <div class="notif-header">
+                            <h4><i class="fa-solid fa-bell"></i> বিজ্ঞপ্তি সমূহ</h4>
+                            <button id="clearNotifsBtn" class="clear-btn">মুছে ফেলুন</button>
+                        </div>
+                        <div class="notif-list" id="notifList">
+                            <div class="empty-notif">কোনো নতুন নোটিফিকেশন নেই</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Profile Pill -->
+                <div class="user-profile-pill" id="userProfilePill" style="display: none;">
+                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Teacher" id="navUserAvatar" alt="User Avatar" class="user-avatar-sm">
+                    <div class="user-info-text">
+                        <span class="user-nav-name" id="navUserName">ব্যবহারকারী</span>
+                        <span class="user-nav-role" id="navUserRole">শিক্ষক</span>
+                    </div>
+                    <button class="logout-btn" id="logoutBtn" title="লগআউট">
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </button>
+                </div>
+
+                <!-- Switch Role Quick Button (When logged out) -->
+                <div class="auth-role-switch-header" id="guestRoleSwitch">
+                    <button class="role-tab-btn active" data-role="student" id="headerStudentBtn">
+                        <i class="fa-solid fa-user-graduate"></i> শিক্ষার্থী
+                    </button>
+                    <button class="role-tab-btn" data-role="teacher" id="headerTeacherBtn">
+                        <i class="fa-solid fa-chalkboard-user"></i> শিক্ষক
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN APP CONTAINER -->
+    <main class="main-content" id="mainContent">
+
+        <!-- ============================================== -->
+        <!-- 1. AUTHENTICATION SCREENS                      -->
+        <!-- ============================================== -->
+        <section class="auth-section" id="authSection">
+            <div class="auth-card">
+                
+                <!-- Role Toggle Tabs -->
+                <div class="auth-toggle-bar">
+                    <button class="auth-tab-btn active" id="tabStudentLogin" onclick="switchAuthTab('student')">
+                        <i class="fa-solid fa-user-graduate"></i> শিক্ষার্থী লগইন
+                    </button>
+                    <button class="auth-tab-btn" id="tabTeacherLogin" onclick="switchAuthTab('teacher')">
+                        <i class="fa-solid fa-chalkboard-user"></i> শিক্ষক লগইন
+                    </button>
+                </div>
+
+                <!-- ================= STUDENT LOGIN FORM ================= -->
+                <div class="auth-pane active" id="studentLoginPane">
+                    <div class="auth-header">
+                        <h2>শিক্ষার্থী পোর্টালে স্বাগতম</h2>
+                        <p>আপনার মোবাইল নম্বর অথবা স্টুডেন্ট আইডি দিয়ে লগইন করুন</p>
+                    </div>
+
+                    <!-- STEP 1: Enter Phone / ID -->
+                    <form id="studentPhoneForm" class="auth-form" onsubmit="handleStudentRequestOtp(event)">
+                        <div class="form-group">
+                            <label for="studentPhoneInput"><i class="fa-solid fa-phone"></i> মোবাইল নম্বর বা আইডি</label>
+                            <div class="input-with-icon">
+                                <span class="input-prefix">📱</span>
+                                <input type="text" id="studentPhoneInput" placeholder="017XXXXXXXX বা STU-101" required autocomplete="tel">
+                            </div>
+                            <small class="form-hint">শিক্ষক কর্তৃক প্রদত্ত ১১ ডিজিট মোবাইল নম্বর লিখুন</small>
+                        </div>
+
+                        <div id="recaptcha-container"></div>
+
+                        <button type="submit" class="btn btn-primary btn-block" id="sendOtpBtn">
+                            <span>ওটিপি (OTP) পাঠান</span>
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </form>
+
+                    <!-- STEP 2: Enter 4-Digit OTP -->
+                    <form id="studentOtpForm" class="auth-form" style="display: none;" onsubmit="handleStudentVerifyOtp(event)">
+                        <div class="otp-banner">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            <div>
+                                <span id="otpTargetNumber">017XXXXXXXX</span> নম্বরে একটি ৪ ডিজিটের ওটিপি পাঠানো হয়েছে
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label><i class="fa-solid fa-key"></i> ৪ ডিজিট ওটিপি কোড দিন</label>
+                            <div class="otp-inputs-wrapper">
+                                <input type="text" maxlength="1" class="otp-box" inputmode="numeric" pattern="[0-9]*" autofocus>
+                                <input type="text" maxlength="1" class="otp-box" inputmode="numeric" pattern="[0-9]*">
+                                <input type="text" maxlength="1" class="otp-box" inputmode="numeric" pattern="[0-9]*">
+                                <input type="text" maxlength="1" class="otp-box" inputmode="numeric" pattern="[0-9]*">
+                            </div>
+                            <input type="hidden" id="studentOtpCombined">
+                        </div>
+
+                        <div class="form-checkbox">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="rememberStudentDevice" checked>
+                                <span class="checkmark"></span>
+                                এই ডিভাইসে পরবর্তীতে সরাসরি লগইন করুন (ওটিপি লাগবে না)
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-block" id="verifyOtpBtn">
+                            <span>যাচাই করে ড্যাশবোর্ডে যান</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+
+                        <div class="otp-footer">
+                            <span id="otpTimerText">পুনরায় ওটিপি পাঠান: <strong id="otpTimer">00:45</strong></span>
+                            <button type="button" class="btn-link" id="resendOtpBtn" style="display: none;" onclick="handleResendOtp()">
+                                পুনরায় ওটিপি পাঠান (Resend)
+                            </button>
+                            <button type="button" class="btn-link text-muted" onclick="changeStudentPhone()">
+                                নম্বর পরিবর্তন করুন
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Quick Demo Credentials Box -->
+                    <div class="demo-account-box">
+                        <div class="demo-title"><i class="fa-solid fa-circle-info"></i> দ্রুত টেস্ট করার জন্য তৈরি ডেমো একাউন্ট:</div>
+                        <div class="demo-chips">
+                            <button type="button" class="chip-btn" onclick="quickFillStudent('01711000001')">
+                                <strong>সাদিয়া আহমেদ (Class 10)</strong> <code>01711000001</code>
+                            </button>
+                            <button type="button" class="chip-btn" onclick="quickFillStudent('01822000002')">
+                                <strong>রাফি হাসান (Class 9)</strong> <code>01822000002</code>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================= TEACHER LOGIN FORM ================= -->
+                <div class="auth-pane" id="teacherLoginPane">
+                    <div class="auth-header">
+                        <h2>শিক্ষক পোর্টালে লগইন</h2>
+                        <p>শিক্ষক আইডি/ইমেইল ও পাসওয়ার্ড প্রদান করুন</p>
+                    </div>
+
+                    <form id="teacherLoginForm" class="auth-form" onsubmit="handleTeacherLogin(event)">
+                        <div class="form-group">
+                            <label for="teacherEmailInput"><i class="fa-solid fa-envelope"></i> শিক্ষক আইডি / ইমেইল</label>
+                            <div class="input-with-icon">
+                                <span class="input-prefix">👨‍🏫</span>
+                                <input type="text" id="teacherEmailInput" value="teacher@educheck.com" placeholder="teacher@educheck.com বা 01700000000" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="teacherPasswordInput"><i class="fa-solid fa-lock"></i> পাসওয়ার্ড</label>
+                            <div class="input-with-icon">
+                                <span class="input-prefix">🔑</span>
+                                <input type="password" id="teacherPasswordInput" value="123456" placeholder="******" required>
+                            </div>
+                        </div>
+
+                        <div class="form-checkbox">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="rememberTeacher" checked>
+                                <span class="checkmark"></span>
+                                আমাকে মনে রাখুন
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-teacher btn-block">
+                            <span>শিক্ষক পোর্টালে প্রবেশ করুন</span>
+                            <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                        </button>
+                    </form>
+
+                    <div class="demo-account-box">
+                        <div class="demo-title"><i class="fa-solid fa-circle-info"></i> ডিফল্ট শিক্ষক একাউন্ট:</div>
+                        <p class="demo-info">ইমেইল: <code>teacher@educheck.com</code> | পাসওয়ার্ড: <code>123456</code></p>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+
+        <!-- ============================================== -->
+        <!-- 2. TEACHER DASHBOARD VIEW                      -->
+        <!-- ============================================== -->
+        <section class="portal-view" id="teacherPortalView" style="display: none;">
+            
+            <!-- Dashboard Stats & Action Header -->
+            <div class="dashboard-header-card">
+                <div class="teacher-welcome-info">
+                    <h2 class="section-title">শিক্ষক ড্যাশবোর্ড <span class="badge badge-teacher">অ্যাডমিন</span></h2>
+                    <p class="section-subtitle">শিক্ষার্থীদের জমা দেওয়া খাতা চেক করুন, নম্বর দিন এবং নতুন শিক্ষার্থী যুক্ত করুন</p>
+                </div>
+                <div class="header-action-buttons">
+                    <button class="btn btn-primary" onclick="openAddStudentModal()">
+                        <i class="fa-solid fa-user-plus"></i> শিক্ষার্থী যুক্ত করুন
+                    </button>
+                    <button class="btn btn-success" onclick="openCreateAssignmentModal()">
+                        <i class="fa-solid fa-plus-circle"></i> নতুন HW / পরীক্ষা দিন
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Overview Cards -->
+            <div class="stats-grid">
+                <div class="stat-card" style="--card-accent: #3b82f6;">
+                    <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+                    <div class="stat-data">
+                        <span class="stat-value" id="statTotalStudents">0</span>
+                        <span class="stat-label">মোট শিক্ষার্থী</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--card-accent: #f59e0b;">
+                    <div class="stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <div class="stat-data">
+                        <span class="stat-value" id="statPendingKhata">0</span>
+                        <span class="stat-label">চেক বাকি (Pending)</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--card-accent: #10b981;">
+                    <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="stat-data">
+                        <span class="stat-value" id="statCheckedKhata">0</span>
+                        <span class="stat-label">খাতা দেখা সম্পন্ন</span>
+                    </div>
+                </div>
+                <div class="stat-card" style="--card-accent: #8b5cf6;">
+                    <div class="stat-icon"><i class="fa-solid fa-book-open"></i></div>
+                    <div class="stat-data">
+                        <span class="stat-value" id="statTotalAssignments">0</span>
+                        <span class="stat-label">মোট HW / পরীক্ষা</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teacher Section Navigation Tabs -->
+            <div class="view-tabs-bar">
+                <button class="view-tab-btn active" onclick="switchTeacherTab('submissions')" id="tabTeacherSubmissions">
+                    <i class="fa-solid fa-file-pen"></i> জমা দেওয়া খাতা সমূহ
+                    <span class="count-badge" id="pendingSubCount">0</span>
+                </button>
+                <button class="view-tab-btn" onclick="switchTeacherTab('students')" id="tabTeacherStudents">
+                    <i class="fa-solid fa-address-book"></i> শিক্ষার্থী তালিকা
+                </button>
+                <button class="view-tab-btn" onclick="switchTeacherTab('assignments')" id="tabTeacherAssignments">
+                    <i class="fa-solid fa-list-check"></i> HW ও পরীক্ষার সূচি
+                </button>
+            </div>
+
+            <!-- TAB 1: SUBMISSIONS MANAGEMENT (Khata Inbox) -->
+            <div class="teacher-tab-pane active" id="paneSubmissions">
+                <div class="filter-controls-bar">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="submissionSearchInput" placeholder="শিক্ষার্থীর নাম বা আইডি দিয়ে খুঁজুন..." oninput="filterSubmissions()">
+                    </div>
+                    <div class="filter-dropdowns">
+                        <select id="filterSubmissionStatus" onchange="filterSubmissions()">
+                            <option value="all">সব খাতা (All Status)</option>
+                            <option value="pending" selected>অপেক্ষমান (Pending Check)</option>
+                            <option value="checked">চেক করা শেষ (Checked)</option>
+                        </select>
+                        <select id="filterSubmissionType" onchange="filterSubmissions()">
+                            <option value="all">সকল ধরন</option>
+                            <option value="homework">ডেইলি হোমওয়ার্ক</option>
+                            <option value="exam">পরীক্ষার খাতা (Exam Sheet)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Submissions List Grid / Table -->
+                <div class="submissions-grid" id="teacherSubmissionsGrid">
+                    <!-- Dynamic submission cards rendered by JS -->
+                </div>
+            </div>
+
+            <!-- TAB 2: STUDENTS ROSTER -->
+            <div class="teacher-tab-pane" id="paneStudents" style="display: none;">
+                <div class="roster-header-bar">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="studentSearchInput" placeholder="শিক্ষার্থী খুঁজুন..." oninput="renderTeacherStudentsList()">
+                    </div>
+                    <button class="btn btn-primary" onclick="openAddStudentModal()">
+                        <i class="fa-solid fa-plus"></i> নতুন শিক্ষার্থী যোগ
+                    </button>
+                </div>
+
+                <div class="students-grid" id="teacherStudentsGrid">
+                    <!-- Dynamic student cards rendered by JS -->
+                </div>
+            </div>
+
+            <!-- TAB 3: ASSIGNMENTS LIST -->
+            <div class="teacher-tab-pane" id="paneAssignments" style="display: none;">
+                <div class="roster-header-bar">
+                    <h3>শিক্ষার্থীদের দেওয়া সকল হোমওয়ার্ক ও পরীক্ষা</h3>
+                    <button class="btn btn-success" onclick="openCreateAssignmentModal()">
+                        <i class="fa-solid fa-plus"></i> নতুন তৈরি করুন
+                    </button>
+                </div>
+                <div class="assignments-grid" id="teacherAssignmentsGrid">
+                    <!-- Dynamic assignments rendered by JS -->
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ============================================== -->
+        <!-- 3. STUDENT DASHBOARD VIEW                      -->
+        <!-- ============================================== -->
+        <section class="portal-view" id="studentPortalView" style="display: none;">
+            
+            <!-- Student Profile Header Banner -->
+            <div class="student-profile-banner">
+                <div class="student-profile-main">
+                    <div class="student-avatar-container">
+                        <img src="" id="studentProfileImg" alt="Student Pic" class="student-avatar-lg">
+                        <span class="online-indicator"></span>
+                    </div>
+                    <div class="student-details">
+                        <h2 id="studentProfileName">শিক্ষার্থীর নাম</h2>
+                        <div class="student-badges">
+                            <span class="badge badge-class" id="studentProfileClass"><i class="fa-solid fa-school"></i> Class 10</span>
+                            <span class="badge badge-subject" id="studentProfileSub"><i class="fa-solid fa-book"></i> বিজ্ঞান শাখা</span>
+                            <span class="badge badge-id" id="studentProfileId"><i class="fa-solid fa-id-card"></i> ID: STU-101</span>
+                            <span class="badge badge-phone" id="studentProfilePhone"><i class="fa-solid fa-phone"></i> 017XXXXXXXX</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="student-banner-actions">
+                    <button class="btn btn-primary btn-submit-hw" onclick="openSubmitHomeworkModal()">
+                        <i class="fa-solid fa-camera"></i> খাতা / HW জমা দিন
+                    </button>
+                </div>
+            </div>
+
+            <!-- Student View Navigation Tabs -->
+            <div class="view-tabs-bar">
+                <button class="view-tab-btn active" onclick="switchStudentTab('activeHw')" id="tabStudentActiveHw">
+                    <i class="fa-solid fa-clipboard-list"></i> আজকের HW ও পরীক্ষা
+                </button>
+                <button class="view-tab-btn" onclick="switchStudentTab('mySubmissions')" id="tabStudentMySubmissions">
+                    <i class="fa-solid fa-clock-rotate-left"></i> আমার জমা দেওয়া খাতার রেকর্ড
+                    <span class="count-badge" id="studentCheckedCount">0</span>
+                </button>
+            </div>
+
+            <!-- STUDENT TAB 1: ACTIVE ASSIGNMENTS -->
+            <div class="student-tab-pane active" id="paneStudentActiveHw">
+                <div class="section-intro">
+                    <h3><i class="fa-solid fa-thumbtack"></i> জমা দেওয়ার জন্য নির্ধারিত কাজ</h3>
+                    <p>নির্ধারিত সময়ের মধ্যে সুন্দর ছবি তুলে হোমওয়ার্ক বা পরীক্ষার খাতা জমা দিন</p>
+                </div>
+                <div class="assignments-grid" id="studentAssignmentsGrid">
+                    <!-- Dynamic assignments for student -->
+                </div>
+            </div>
+
+            <!-- STUDENT TAB 2: MY SUBMISSION HISTORY & CHECKED KHATA -->
+            <div class="student-tab-pane" id="paneStudentMySubmissions" style="display: none;">
+                <div class="section-intro">
+                    <h3><i class="fa-solid fa-folder-open"></i> জমা দেওয়া খাতা ও শিক্ষকের মূল্যায়ন</h3>
+                    <p>কোন সময়ে জমা দিয়েছেন এবং শিক্ষক কি মন্তব্য ও মার্কস দিয়েছেন তা এখানে দেখুন</p>
+                </div>
+                <div class="submissions-grid" id="studentHistoryGrid">
+                    <!-- Dynamic student's past submissions -->
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- ============================================== -->
+    <!-- 4. MODALS & POPUPS                             -->
+    <!-- ============================================== -->
+
+    <!-- ================= MODAL A: ADD NEW STUDENT ================= -->
+    <div class="modal-overlay" id="addStudentModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-user-plus"></i> নতুন শিক্ষার্থী নিবন্ধন</h3>
+                <button class="modal-close-btn" onclick="closeModal('addStudentModal')">&times;</button>
+            </div>
+            <form id="addStudentForm" onsubmit="handleSaveNewStudent(event)">
+                <div class="modal-body">
+                    
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-user"></i> শিক্ষার্থীর পুরো নাম *</label>
+                            <input type="text" id="newStudentName" placeholder="যেমন: সাদিয়া রহমান" required>
+                        </div>
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-phone"></i> সিম / মোবাইল নম্বর *</label>
+                            <input type="tel" id="newStudentPhone" placeholder="017XXXXXXXX" required pattern="[0-9]{11}">
+                            <small class="form-hint">এই নম্বরে ওটিপি (OTP) ও নোটিফিকেশন যাবে</small>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-graduation-cap"></i> শ্রেণী / ব্যাচ *</label>
+                            <select id="newStudentClass" required>
+                                <option value="Class 6">Class 6 (৬ষ্ঠ শ্রেণী)</option>
+                                <option value="Class 7">Class 7 (৭ম শ্রেণী)</option>
+                                <option value="Class 8">Class 8 (৮ম শ্রেণী)</option>
+                                <option value="Class 9">Class 9 (৯ম শ্রেণী)</option>
+                                <option value="Class 10" selected>Class 10 (১০ম শ্রেণী / SSC)</option>
+                                <option value="HSC 1st Year">HSC ১ম বর্ষ</option>
+                                <option value="HSC 2nd Year">HSC ২য় বর্ষ</option>
+                                <option value="Admission">অ্যাডমিশন ব্যাচ</option>
+                            </select>
+                        </div>
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-book-bookmark"></i> বিষয় / গ্রুপ *</label>
+                            <input type="text" id="newStudentSubject" placeholder="যেমন: সাধারণ গণিত / বিজ্ঞান" value="বিজ্ঞান শাখা" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-camera"></i> শিক্ষার্থীর ছবি (ঐচ্ছিক)</label>
+                        <div class="avatar-uploader-area">
+                            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=student1" id="previewStudentAvatar" class="avatar-preview-circle">
+                            <div class="uploader-buttons">
+                                <label class="btn btn-outline btn-sm">
+                                    <i class="fa-solid fa-upload"></i> ছবি আপলোড করুন
+                                    <input type="file" id="newStudentPhotoInput" accept="image/*" style="display:none;" onchange="previewNewStudentPhoto(event)">
+                                </label>
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="randomizeStudentAvatar()">
+                                    <i class="fa-solid fa-dice"></i> র‍্যান্ডম অ্যাভাটার
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="otp-notice-box">
+                        <i class="fa-solid fa-envelope-circle-check"></i>
+                        <div>
+                            <strong>স্বয়ংক্রিয় ওটিপি ও আইডি তৈরি হবে:</strong> সাবমিট করলে শিক্ষার্থীর জন্য স্বয়ংক্রিয় আইডি ও ৪ ডিজিট প্রাথমিক ওটিপি তৈরি হবে এবং সিম নম্বরে এসএমএস যাবে।
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addStudentModal')">বাতিল</button>
+                    <button type="submit" class="btn btn-primary" id="saveStudentSubmitBtn">
+                        <i class="fa-solid fa-check"></i> শিক্ষার্থী সংরক্ষণ ও ওটিপি পাঠান
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= MODAL B: CREATE HOMEWORK / EXAM ================= -->
+    <div class="modal-overlay" id="createAssignmentModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-circle-plus"></i> নতুন হোমওয়ার্ক বা পরীক্ষার প্রশ্ন দিন</h3>
+                <button class="modal-close-btn" onclick="closeModal('createAssignmentModal')">&times;</button>
+            </div>
+            <form id="createAssignmentForm" onsubmit="handleSaveNewAssignment(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-heading"></i> শিরোনাম / টপিক *</label>
+                        <input type="text" id="assignTitle" placeholder="যেমন: ত্রিকোণমিতি অধ্যায় ৯.১ অনুশীলনীর কাজ" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-tag"></i> ধরন (Type) *</label>
+                            <select id="assignType" required>
+                                <option value="homework">হোমওয়ার্ক (Daily Homework)</option>
+                                <option value="exam">পরীক্ষার খাতা (Exam Sheet / Test)</option>
+                            </select>
+                        </div>
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-book"></i> বিষয় *</label>
+                            <input type="text" id="assignSubject" placeholder="উচ্চতর গণিত" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-users"></i> কোন শ্রেণীর জন্য *</label>
+                            <select id="assignClass" required>
+                                <option value="All">সকল শ্রেণী (All Students)</option>
+                                <option value="Class 10" selected>Class 10</option>
+                                <option value="Class 9">Class 9</option>
+                                <option value="Class 8">Class 8</option>
+                                <option value="Class 7">Class 7</option>
+                                <option value="Class 6">Class 6</option>
+                                <option value="HSC 1st Year">HSC ১য় বর্ষ</option>
+                                <option value="HSC 2nd Year">HSC ২য় বর্ষ</option>
+                            </select>
+                        </div>
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-calendar-day"></i> জমা দেওয়ার শেষ সময় *</label>
+                            <input type="datetime-local" id="assignDeadline" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-align-left"></i> বিস্তারিত বিবরণ বা নির্দেশাবলী</label>
+                        <textarea id="assignDesc" rows="3" placeholder="শিক্ষার্থীদের জন্য কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-image"></i> প্রশ্নের ছবি / রেফারেন্স পিকচার (ঐচ্ছিক)</label>
+                        <input type="file" id="assignAttachment" accept="image/*" class="file-input-stylish">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createAssignmentModal')">বাতিল</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fa-solid fa-paper-plane"></i> প্রকাশ করুন ও শিক্ষার্থীদের জানান
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ================= MODAL C: SUBMIT HOMEWORK / KHATA (STUDENT) ================= -->
+    <div class="modal-overlay" id="submitHomeworkModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-cloud-arrow-up"></i> খাতার ছবি জমা দিন</h3>
+                <button class="modal-close-btn" onclick="closeModal('submitHomeworkModal')">&times;</button>
+            </div>
+            <form id="submitHomeworkForm" onsubmit="handleStudentHomeworkSubmit(event)">
+                <div class="modal-body">
+                    
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-list-check"></i> কোন হোমওয়ার্ক / পরীক্ষার খাতা জমা দিচ্ছেন? *</label>
+                        <select id="submitAssignmentSelect" required onchange="onSelectAssignmentToSubmit()">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+
+                    <!-- Upload zone with mobile camera & gallery options -->
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-images"></i> খাতার স্পষ্ট ছবি তুলুন বা গ্যালারি থেকে সিলেক্ট করুন *</label>
+                        <div class="khata-upload-dropzone" id="khataDropZone">
+                            <i class="fa-solid fa-camera-retro dropzone-icon"></i>
+                            <div class="dropzone-text">
+                                <strong>ক্যামেরা চালু করুন অথবা ছবি আপলোড করুন</strong>
+                                <span>(একাধিক পৃষ্ঠার ছবি একসাথে সিলেক্ট করতে পারেন)</span>
+                            </div>
+                            <div class="dropzone-actions">
+                                <label class="btn btn-primary btn-sm">
+                                    <i class="fa-solid fa-camera"></i> ক্যামেরা / ছবি নিন
+                                    <input type="file" id="khataImageFiles" accept="image/*" multiple capture="environment" style="display:none;" onchange="handleKhataImagesSelected(event)">
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selected Pages Preview Gallery -->
+                    <div class="selected-pages-preview-wrapper" id="khataPagesPreviewWrapper" style="display: none;">
+                        <div class="preview-header-bar">
+                            <span><i class="fa-solid fa-layer-group"></i> নির্বাচিত পৃষ্ঠাসমূহ (<span id="pageCountBadge">0</span>)</span>
+                            <small>জমা দেওয়ার আগে চেক করে নিন</small>
+                        </div>
+                        <div class="pages-grid" id="khataPagesGrid">
+                            <!-- Thumbnails added here -->
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-comment-dots"></i> স্যারের জন্য কোনো মন্তব্য বা প্রশ্ন (ঐচ্ছিক)</label>
+                        <input type="text" id="studentSubmitNote" placeholder="যেমন: স্যার, ৩ নম্বর প্রশ্নের উত্তর নিয়ে একটু কনফিউশন ছিল।">
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('submitHomeworkModal')">বাতিল</button>
+                    <button type="submit" class="btn btn-primary" id="confirmSubmitBtn">
+                        <i class="fa-solid fa-check-double"></i> খাতা জমা দিন
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- MODAL D: TEACHER'S DIGITAL KHATA EVALUATOR (FULL CANVAS CHECKING SUITE)   -->
+    <!-- ========================================================================= -->
+    <div class="modal-overlay evaluator-overlay" id="khataEvaluatorModal">
+        <div class="evaluator-container">
+            
+            <!-- Evaluator Top Header Bar -->
+            <div class="evaluator-top-bar">
+                <div class="evaluator-student-info">
+                    <img src="" id="evalStudentAvatar" class="avatar-eval-sm">
+                    <div class="info-texts">
+                        <h4 id="evalStudentName">শিক্ষার্থীর নাম</h4>
+                        <span id="evalAssignmentTitle" class="eval-subtitle">হোমওয়ার্ক শিরোনাম • জমা দেওয়ার সময়: আজ ৯:১৫ PM</span>
+                    </div>
+                </div>
+
+                <!-- Page navigation if student uploaded multiple pages -->
+                <div class="eval-page-navigation" id="evalPageNav">
+                    <button class="nav-page-btn" id="prevPageBtn" onclick="navigateKhataPage(-1)">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span class="page-indicator">পৃষ্ঠা <strong id="currentPageNum">1</strong> / <span id="totalPagesNum">1</span></span>
+                    <button class="nav-page-btn" id="nextPageBtn" onclick="navigateKhataPage(1)">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <div class="eval-header-actions">
+                    <button class="btn btn-ghost" onclick="closeModal('khataEvaluatorModal')" title="বন্ধ করুন">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Evaluator Main Workspace -->
+            <div class="evaluator-workspace">
+                
+                <!-- Floating Left/Top Toolbar for Touch & Mouse -->
+                <aside class="canvas-toolbar" id="canvasToolbar">
+                    
+                    <!-- Tool Selection Group -->
+                    <div class="tool-group">
+                        <button class="tool-btn active" data-tool="pen" id="toolPen" title="লাল কলম / পেন">
+                            <i class="fa-solid fa-pen-nib"></i>
+                            <span class="tool-label">কলম</span>
+                        </button>
+                        <button class="tool-btn" data-tool="highlighter" id="toolHighlighter" title="হাইলাইটার">
+                            <i class="fa-solid fa-highlighter"></i>
+                            <span class="tool-label">হাইলাইট</span>
+                        </button>
+                        <button class="tool-btn" data-tool="eraser" id="toolEraser" title="ইরেজার (মুছে ফেলুন)">
+                            <i class="fa-solid fa-eraser"></i>
+                            <span class="tool-label">মুছুন</span>
+                        </button>
+                        <button class="tool-btn" data-tool="text" id="toolText" title="মন্তব্য লিখুন">
+                            <i class="fa-solid fa-font"></i>
+                            <span class="tool-label">টেক্সট</span>
+                        </button>
+                    </div>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Colors Palette -->
+                    <div class="tool-group color-group">
+                        <span class="group-title">রং:</span>
+                        <div class="color-palette">
+                            <button class="color-circle active" style="--c: #ef4444;" data-color="#ef4444" title="লাল (Red Pen)"></button>
+                            <button class="color-circle" style="--c: #10b981;" data-color="#10b981" title="সবুজ (Green)"></button>
+                            <button class="color-circle" style="--c: #3b82f6;" data-color="#3b82f6" title="নীল (Blue)"></button>
+                            <button class="color-circle" style="--c: #eab308;" data-color="#eab308" title="হলুদ"></button>
+                            <button class="color-circle" style="--c: #1f2937;" data-color="#1f2937" title="কালো"></button>
+                        </div>
+                    </div>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Brush Size Slider -->
+                    <div class="tool-group size-group">
+                        <span class="group-title">সাইজ:</span>
+                        <input type="range" id="brushSizeSlider" min="2" max="25" value="4" class="brush-slider">
+                        <span id="brushSizeDisplay">4px</span>
+                    </div>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Quick Stamps (Tick, Cross, Circle, Stars, Grade badges) -->
+                    <div class="tool-group stamps-group">
+                        <span class="group-title">দ্রুত স্ট্যাম্প:</span>
+                        <div class="stamps-grid">
+                            <button class="stamp-btn stamp-tick" onclick="setCanvasStamp('tick')" title="সঠিক টিক চিহ্ন (✔)">
+                                <i class="fa-solid fa-check"></i>
+                            </button>
+                            <button class="stamp-btn stamp-cross" onclick="setCanvasStamp('cross')" title="ভুল ক্রস চিহ্ন (✖)">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                            <button class="stamp-btn stamp-circle" onclick="setCanvasStamp('circle')" title="গোল দাগ (⭕)">
+                                <i class="fa-regular fa-circle"></i>
+                            </button>
+                            <button class="stamp-btn stamp-star" onclick="setCanvasStamp('star')" title="স্টার (⭐)">
+                                <i class="fa-solid fa-star"></i>
+                            </button>
+                            <button class="stamp-btn stamp-vg" onclick="setCanvasStamp('verygood')" title="Very Good!">
+                                VG!
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="toolbar-divider"></div>
+
+                    <!-- Undo / Redo / Clear Actions -->
+                    <div class="tool-group action-group">
+                        <button class="tool-action-btn" id="canvasUndoBtn" onclick="undoCanvas()" title="পূর্বাবস্থায় ফিরুন (Undo)">
+                            <i class="fa-solid fa-rotate-left"></i>
+                        </button>
+                        <button class="tool-action-btn" id="canvasRedoBtn" onclick="redoCanvas()" title="সামনে যান (Redo)">
+                            <i class="fa-solid fa-rotate-right"></i>
+                        </button>
+                        <button class="tool-action-btn btn-danger-ghost" onclick="clearCanvasAnnotations()" title="সকল দাগ মুছে ফেলুন">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+
+                </aside>
+
+                <!-- Interactive Canvas Area -->
+                <div class="canvas-viewport" id="canvasViewport">
+                    <div class="canvas-wrapper" id="canvasWrapper">
+                        <canvas id="khataCanvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Right Evaluation Grading Sidebar -->
+                <aside class="evaluator-grading-panel">
+                    <h3><i class="fa-solid fa-square-poll-vertical"></i> মূল্যায়ন ও ফলাফল</h3>
+                    
+                    <form id="evaluationResultForm" onsubmit="handleSaveEvaluation(event)">
+                        
+                        <div class="grading-group">
+                            <label><i class="fa-solid fa-award"></i> প্রাপ্ত নম্বর (Obtained Marks) *</label>
+                            <div class="marks-input-row">
+                                <input type="number" id="evalMarksObtained" placeholder="18" step="0.5" min="0" required class="marks-input-lg">
+                                <span class="marks-separator">/</span>
+                                <input type="number" id="evalMarksTotal" placeholder="20" min="1" value="20" required class="marks-input-lg">
+                            </div>
+                        </div>
+
+                        <div class="grading-group">
+                            <label><i class="fa-solid fa-medal"></i> গ্রেড / পারফরম্যান্স</label>
+                            <select id="evalGradeSelect" class="form-select">
+                                <option value="A+ (অসাধারণ)">A+ (অসাধারণ 🌟)</option>
+                                <option value="A (খুব ভালো)" selected>A (খুব ভালো 👍)</option>
+                                <option value="B (ভালো)">B (ভালো)</option>
+                                <option value="C (উন্নতি প্রয়োজন)">C (আরও উন্নতি প্রয়োজন)</option>
+                                <option value="F (পুনরায় লিখুন)">F (পুনরায় জমা দিন)</option>
+                            </select>
+                        </div>
+
+                        <div class="grading-group">
+                            <label><i class="fa-solid fa-comment-medical"></i> স্যারের মন্তব্য ও ফিডব্যাক *</label>
+                            <textarea id="evalTeacherRemarks" rows="4" placeholder="হাতের লেখা সুন্দর হয়েছে, তবে ৩ নম্বর সমীকরণে প্লাস মাইনাসে ভুল ছিল। মনোযোগ দিয়ে প্র্যাকটিস করো।" required></textarea>
+                        </div>
+
+                        <!-- Quick Remarks Snippets -->
+                        <div class="quick-remarks-box">
+                            <span class="quick-title">ক্লিক করে মন্তব্য যুক্ত করুন:</span>
+                            <div class="quick-chips">
+                                <button type="button" class="q-chip" onclick="addQuickRemark('খুব চমৎকার লেখা ও সমাধান! 👍')">খুব চমৎকার!</button>
+                                <button type="button" class="q-chip" onclick="addQuickRemark('হাতের লেখা আরও স্পষ্ট করো। ✍️')">হাতের লেখা স্পষ্ট করো</button>
+                                <button type="button" class="q-chip" onclick="addQuickRemark('ভুলগুলো সংশোধন করে পুনরায় দেখে নিও।')">ভুল সংশোধন করো</button>
+                            </div>
+                        </div>
+
+                        <div class="notify-student-check">
+                            <label class="checkbox-container">
+                                <input type="checkbox" id="evalSendSmsNotify" checked>
+                                <span class="checkmark"></span>
+                                ছাত্রকে তাৎক্ষণিক নোটিফিকেশন ও এসএমএস পাঠান
+                            </label>
+                        </div>
+
+                        <div class="grading-actions">
+                            <button type="submit" class="btn btn-success btn-block btn-lg" id="saveEvaluationBtn">
+                                <i class="fa-solid fa-circle-check"></i> খাতা মূল্যায়ন সম্পন্ন ও জমা দিন
+                            </button>
+                        </div>
+                    </form>
+                </aside>
+
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- MODAL E: STUDENT VIEW CHECKED KHATA & MARKSHEET                           -->
+    <!-- ========================================================================= -->
+    <div class="modal-overlay" id="viewEvaluatedKhataModal">
+        <div class="modal-card modal-xl">
+            <div class="modal-header">
+                <div>
+                    <h3 id="viewKhataTitle"><i class="fa-solid fa-award"></i> মূল্যায়িত খাতা ও ফলাফল</h3>
+                    <small id="viewKhataSubtitle" class="text-muted">শিক্ষক কর্তৃক মূল্যায়িত খাতা</small>
+                </div>
+                <div class="modal-header-actions">
+                    <button class="btn btn-outline btn-sm" onclick="downloadEvaluatedKhata()">
+                        <i class="fa-solid fa-download"></i> খাতা ডাউনলোড
+                    </button>
+                    <button class="modal-close-btn" onclick="closeModal('viewEvaluatedKhataModal')">&times;</button>
+                </div>
+            </div>
+            
+            <div class="modal-body evaluated-view-body">
+                
+                <!-- Score Card Banner -->
+                <div class="evaluated-score-card">
+                    <div class="score-display">
+                        <div class="score-circle">
+                            <span class="score-num" id="viewScoreObtained">0</span>
+                            <span class="score-divider">/</span>
+                            <span class="score-total" id="viewScoreTotal">0</span>
+                        </div>
+                        <div class="score-meta">
+                            <span class="score-badge" id="viewScoreGrade">A+</span>
+                            <span class="score-status-text">খাতা দেখা সম্পন্ন</span>
+                        </div>
+                    </div>
+                    <div class="teacher-remarks-box">
+                        <div class="remarks-header">
+                            <i class="fa-solid fa-chalkboard-user"></i> <strong>শিক্ষকের মন্তব্য:</strong>
+                        </div>
+                        <p id="viewTeacherRemarksText" class="remarks-content">মন্তব্য প্রদর্শিত হবে...</p>
+                        <small class="evaluated-date" id="viewEvaluatedDate">মূল্যায়নের সময়: --</small>
+                    </div>
+                </div>
+
+                <!-- Evaluated Khata Images Carousel / List -->
+                <div class="checked-khata-container">
+                    <h4><i class="fa-solid fa-pen-fancy"></i> শিক্ষকের লাল কালির মার্কিং ও টিক দেওয়া খাতা:</h4>
+                    <div class="checked-images-list" id="viewCheckedImagesList">
+                        <!-- Checked images rendered dynamically -->
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeModal('viewEvaluatedKhataModal')">ঠিক আছে</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- MODAL F: INSTANT OTP / SMS DISPLAY SIMULATOR (FREE SMS ASSISTANT)         -->
+    <!-- ========================================================================= -->
+    <div class="modal-overlay" id="smsOtpSimulatorModal">
+        <div class="modal-card modal-sm">
+            <div class="modal-header sms-sim-header">
+                <h3><i class="fa-solid fa-mobile-screen-button"></i> ইনকামিং এসএমএস (SMS)</h3>
+                <button class="modal-close-btn" onclick="closeModal('smsOtpSimulatorModal')">&times;</button>
+            </div>
+            <div class="modal-body sms-sim-body">
+                <div class="sim-phone-screen">
+                    <div class="sms-sender-info">
+                        <i class="fa-solid fa-shield-halved"></i> <strong>EduCheck Portal</strong>
+                        <span class="sms-time">এখনই</span>
+                    </div>
+                    <div class="sms-message-bubble">
+                        <p id="simSmsMessageText">আপনার EduCheck ওটিপি (OTP) কোড হলো: <strong class="sim-otp-code">5829</strong>। কোডটি কাউকে বলবেন না।</p>
+                    </div>
+                </div>
+                <div class="sms-actions">
+                    <button class="btn btn-success btn-block" id="autoFillOtpBtn" onclick="autoFillSimulatedOtp()">
+                        <i class="fa-solid fa-paste"></i> ওটিপি স্বয়ংক্রিয় বসান (Auto-Fill)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Toastify JS -->
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+    <!-- Firebase SDK (Compat version for smooth browser integration) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+    
+    <!-- Application Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/free-storage.js"></script>
+    <script src="js/sms-service.js"></script>
+    <script src="js/canvas-evaluator.js"></script>
+    <script src="js/app.js"></script>
+
+</body>
+</html>
