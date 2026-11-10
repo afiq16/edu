@@ -325,10 +325,6 @@ async function initDatabase() {
         console.log(`📊 Initial database loaded: ${state.students.length} students, ${state.assignments.length} assignments, ${state.submissions.length} submissions`);
     } catch (err) {
         console.error("Database initialization error:", err);
-    }
-}
-    } catch (e) {
-        console.warn("Storage sync:", e);
         state.students = [];
         state.assignments = [];
         state.submissions = [];
@@ -1037,19 +1033,23 @@ function setActiveMobNav(btnEl) {
 function switchTeacherTab(tabName) {
     document.querySelectorAll(".view-tab-btn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".teacher-tab-pane").forEach(p => p.style.display = "none");
+    document.querySelectorAll("#teacherMobileNavGroup .mobile-nav-item").forEach(b => b.classList.remove("active"));
 
     if (tabName === 'submissions') {
         document.getElementById("tabTeacherSubmissions")?.classList.add("active");
+        document.getElementById("mobNavTeacherSubs")?.classList.add("active");
         const pane = document.getElementById("paneSubmissions");
         if (pane) pane.style.display = "block";
         renderTeacherSubmissions();
     } else if (tabName === 'students') {
         document.getElementById("tabTeacherStudents")?.classList.add("active");
+        document.getElementById("mobNavTeacherStudents")?.classList.add("active");
         const pane = document.getElementById("paneStudents");
         if (pane) pane.style.display = "block";
         renderTeacherStudentsList();
     } else if (tabName === 'assignments') {
         document.getElementById("tabTeacherAssignments")?.classList.add("active");
+        document.getElementById("mobNavTeacherAssigns")?.classList.add("active");
         const pane = document.getElementById("paneAssignments");
         if (pane) pane.style.display = "block";
         renderTeacherAssignments();
@@ -1720,19 +1720,23 @@ async function handleSaveEvaluation(event) {
 function switchStudentTab(tabName) {
     document.querySelectorAll(".view-tab-btn").forEach(b => b.classList.remove("active"));
     document.querySelectorAll(".student-tab-pane").forEach(p => p.style.display = "none");
+    document.querySelectorAll("#studentMobileNavGroup .mobile-nav-item").forEach(b => b.classList.remove("active"));
 
     if (tabName === 'activeHw') {
         document.getElementById("tabStudentActiveHw")?.classList.add("active");
+        document.getElementById("mobNavStudentHw")?.classList.add("active");
         const pane = document.getElementById("paneStudentActiveHw");
         if (pane) pane.style.display = "block";
         renderStudentActiveHw();
     } else if (tabName === 'mySubmissions') {
         document.getElementById("tabStudentMySubmissions")?.classList.add("active");
+        document.getElementById("mobNavStudentRecords")?.classList.add("active");
         const pane = document.getElementById("paneStudentMySubmissions");
         if (pane) pane.style.display = "block";
         renderStudentHistory();
     } else if (tabName === 'leaderboard') {
         document.getElementById("tabStudentLeaderboard")?.classList.add("active");
+        document.getElementById("mobNavStudentLeaderboard")?.classList.add("active");
         const pane = document.getElementById("paneStudentLeaderboard");
         if (pane) pane.style.display = "block";
         renderStudentLeaderboard();
@@ -1910,7 +1914,6 @@ async function renderStudentDashboard() {
     const studentDoubtBadge = document.getElementById("studentPendingDoubtsCount");
     if (studentDoubtBadge) studentDoubtBadge.textContent = pendingDoubtsCount;
 
-    renderStudentBadges(student, totalSubs, checkedCount, avgScorePercent, checkedSubs);
     renderStudentActiveHw();
     renderStudentHistory();
     updateLiveNoticeAlert();
@@ -3008,78 +3011,7 @@ function openStudentReportCardModal(studentId) {
 // STUDENT BADGES & ACHIEVEMENTS SYSTEM
 // ==========================================================================
 function renderStudentBadges(student, totalSubs, checkedCount, avgScorePercent, checkedSubs) {
-    const grid = document.getElementById("studentBadgesGrid");
-    const countText = document.getElementById("studentBadgesCountText");
-    if (!grid) return;
-
-    const hasPerfectScore = checkedSubs && checkedSubs.some(s => {
-        const ob = s.evaluation?.obtainedMarks || 0;
-        const tot = s.evaluation?.totalMarks || 20;
-        return tot > 0 && ob >= tot;
-    });
-
-    const badges = [
-        {
-            id: "badge_first_hw",
-            title: "প্রথম পদক্ষেপ",
-            desc: "১ম হোমওয়ার্ক খাতা সফল জমা",
-            icon: "fa-rocket",
-            color: "#6366f1",
-            unlocked: totalSubs >= 1
-        },
-        {
-            id: "badge_streak_master",
-            title: "নিয়মিত শিক্ষার্থী",
-            desc: "ধারাবাহিক চর্চা ও ৩+ টি খাতা জমা",
-            icon: "fa-fire",
-            color: "#ef4444",
-            unlocked: totalSubs >= 3
-        },
-        {
-            id: "badge_perfect_score",
-            title: "পারফেক্ট ১০০",
-            desc: "যেকোনো মূল্যায়নে ১০০% পূর্ণ মার্কস",
-            icon: "fa-bullseye",
-            color: "#10b981",
-            unlocked: Boolean(hasPerfectScore)
-        },
-        {
-            id: "badge_star_performer",
-            title: "স্টার পারফরমার",
-            desc: "গড়ে ৮০% বা ততোধিক স্কোর (A+)",
-            icon: "fa-star",
-            color: "#f59e0b",
-            unlocked: checkedCount >= 1 && avgScorePercent >= 80
-        },
-        {
-            id: "badge_super_scholar",
-            title: "সুপার স্টুডেন্ট",
-            desc: "মোট ৫টি বা তার বেশি খাতা জমা",
-            icon: "fa-award",
-            color: "#8b5cf6",
-            unlocked: totalSubs >= 5
-        }
-    ];
-
-    const unlockedCount = badges.filter(b => b.unlocked).length;
-    if (countText) {
-        countText.textContent = `${unlockedCount}/${badges.length} অর্জিত`;
-    }
-
-    grid.innerHTML = badges.map(b => `
-        <div class="badge-achievement-card ${b.unlocked ? 'unlocked' : 'locked'}">
-            <div class="badge-card-icon" style="background: ${b.unlocked ? b.color + '15' : '#f1f5f9'}; color: ${b.unlocked ? b.color : '#94a3b8'};">
-                <i class="fa-solid ${b.icon}"></i>
-            </div>
-            <div class="badge-card-info">
-                <div class="badge-card-title">${b.title}</div>
-                <div class="badge-card-desc">${b.desc}</div>
-                <div class="badge-card-status">
-                    ${b.unlocked ? '<span style="color: #10b981;"><i class="fa-solid fa-circle-check"></i> আনলকড</span>' : '<span style="color: #94a3b8;"><i class="fa-solid fa-lock"></i> লকড</span>'}
-                </div>
-            </div>
-        </div>
-    `).join('');
+    // Badges UI deactivated per request
 }
 
 // ==========================================================================
