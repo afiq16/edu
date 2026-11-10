@@ -4443,3 +4443,95 @@ window.openStudentReportCardModal = openStudentReportCardModal;
 window.renderStudentBadges = renderStudentBadges;
 window.openTeacherSettingsModal = openTeacherSettingsModal;
 window.handleSaveTeacherSettings = handleSaveTeacherSettings;
+
+// =========================================================================
+// APP DOWNLOAD MODAL & SHARING HANDLERS
+// =========================================================================
+function openAppDownloadModal() {
+    openModal('appDownloadModal');
+}
+
+function handleDirectDownload(event, relativePath, fileName) {
+    showToast(`📥 ${fileName} ডাউনলোড শুরু হয়েছে! ব্রাউজারের ডাউনলোড লিস্ট চেক করুন।`, 'success');
+}
+
+function forceDownloadFile(relativePath, fileName) {
+    try {
+        const fullUrl = new URL(relativePath, window.location.href).href;
+        showToast(`⏳ ${fileName} ডাউনলোড শুরু হচ্ছে...`, 'info');
+        
+        // Direct location change triggers native browser download
+        window.location.href = fullUrl;
+    } catch (e) {
+        window.location.href = relativePath;
+    }
+}
+
+function openFileInNewTab(relativePath) {
+    try {
+        const fullUrl = new URL(relativePath, window.location.href).href;
+        window.open(fullUrl, '_blank');
+        showToast(`🌐 ফাইলটি নতুন ট্যাবে রিকোয়েস্ট করা হয়েছে।`, 'info');
+    } catch (e) {
+        window.open(relativePath, '_blank');
+    }
+}
+
+async function downloadAppFile(platform, btnElement) {
+    const isAndroid = platform === 'android';
+    const filename = isAndroid ? 'EduCheck-Android-v1.0.apk' : 'EduCheck-iOS-Simulator-v1.0.zip';
+    const localUrl = `downloads/${filename}`;
+    
+    let origHtml = '';
+    if (btnElement) {
+        origHtml = btnElement.innerHTML;
+        btnElement.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ডাউনলোড শুরু হচ্ছে...`;
+        btnElement.disabled = true;
+    }
+
+    showToast(`⏳ ${isAndroid ? 'Android APK' : 'iOS Build'} প্রস্তুত হচ্ছে, ডাউনলোড শুরু হবে...`, 'info');
+
+    // Immediate direct location assignment
+    try {
+        const fullUrl = new URL(localUrl, window.location.href).href;
+        window.location.href = fullUrl;
+        showToast(`✅ ${filename} ডাউনলোড শুরু হয়েছে! ব্রাউজারের ডাউনলোড অপশন দেখুন।`, 'success');
+    } catch (err) {
+        window.location.href = localUrl;
+    }
+
+    if (btnElement) {
+        setTimeout(() => {
+            btnElement.innerHTML = origHtml;
+            btnElement.disabled = false;
+        }, 2000);
+    }
+}
+
+function copyAppDownloadLink() {
+    const downloadUrl = window.location.origin + window.location.pathname;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(downloadUrl).then(() => {
+            showToast('📋 EduCheck অ্যাপ ও ওয়েব লিংক সফলভাবে কপি করা হয়েছে!', 'success');
+        }).catch(() => {
+            prompt('EduCheck লিংকটি কপি করুন:', downloadUrl);
+        });
+    } else {
+        prompt('EduCheck লিংকটি কপি করুন:', downloadUrl);
+    }
+}
+
+function shareAppDownloadWhatsApp() {
+    const downloadUrl = window.location.origin + window.location.pathname;
+    const text = `📱 *EduCheck মোবাইল অ্যাপ*\n\nডিজিটাল খাতা মূল্যায়ন ও হোমওয়ার্ক পোর্টাল:\nAndroid APK ও iOS বিল্ড সরাসরি ডাউনলোড করুন অথবা ব্রাউজারে ব্যবহার করুন:\n🔗 ${downloadUrl}\n\nপরিচালনায়: আফিক স্যার`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(waUrl, '_blank');
+}
+
+window.openAppDownloadModal = openAppDownloadModal;
+window.downloadAppFile = downloadAppFile;
+window.handleDirectDownload = handleDirectDownload;
+window.forceDownloadFile = forceDownloadFile;
+window.openFileInNewTab = openFileInNewTab;
+window.copyAppDownloadLink = copyAppDownloadLink;
+window.shareAppDownloadWhatsApp = shareAppDownloadWhatsApp;
