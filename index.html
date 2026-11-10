@@ -62,6 +62,12 @@
             </div>
 
             <div class="nav-right">
+                <!-- App Download Nav Button -->
+                <button class="app-download-nav-btn" onclick="openAppDownloadModal()" title="EduCheck মোবাইল অ্যাপ ডাউনলোড করুন">
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                    <span>অ্যাপ নামান</span>
+                </button>
+
                 <!-- Theme Toggle Button -->
                 <button class="theme-toggle-btn" id="themeToggleBtn" onclick="toggleDarkTheme()" title="ডার্ক / লাইট মোড পরিবর্তন">
                     <i class="fa-solid fa-moon" id="themeToggleIcon"></i>
@@ -293,6 +299,24 @@
                             <i class="fa-solid fa-arrow-right-to-bracket"></i>
                         </button>
                     </form>
+                </div>
+
+                <!-- Direct App Download Banner below Login Form -->
+                <div class="auth-app-download-banner" onclick="openAppDownloadModal()">
+                    <div class="banner-badge">🚀 অফিসিয়াল মোবাইল অ্যাপ</div>
+                    <div class="banner-body">
+                        <div class="banner-icons">
+                            <i class="fa-brands fa-android banner-android-icon"></i>
+                            <i class="fa-brands fa-apple banner-apple-icon"></i>
+                        </div>
+                        <div class="banner-info">
+                            <h4>EduCheck মোবাইল অ্যাপ ডাউনলোড করুন</h4>
+                            <p>Android ও iOS ডিভাইসে আরও দ্রুত খাতা জমা দিন ও ইনস্ট্যান্ট নোটিফিকেশন পান</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-light banner-cta-btn">
+                        <i class="fa-solid fa-download"></i> অ্যাপ ডাউনলোড
+                    </button>
                 </div>
 
             </div>
@@ -1863,9 +1887,21 @@
                     </button>
                 </div>
 
-                <!-- APP PREFERENCES & THEME SWITCH -->
+                <!-- APP PREFERENCES & DOWNLOAD -->
                 <div class="profile-settings-group" style="margin-top: 1.25rem; border-top: 1px solid var(--border); padding-top: 1rem;">
-                    <h4 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">অ্যাপ প্রেফারেন্স</h4>
+                    <h4 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px;">অ্যাপ প্রেফারেন্স ও ডাউনলোড</h4>
+                    
+                    <div class="setting-toggle-row" onclick="openAppDownloadModal()" style="cursor: pointer; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="setting-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #10b981;"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                            <div>
+                                <strong style="font-size: 0.92rem; display: block; color: var(--text-main);">মোবাইল অ্যাপ ডাউনলোড করুন</strong>
+                                <small class="text-muted" style="font-size: 0.78rem;">Android APK ও iOS বিল্ড সরাসরি নামিয়ে নিন</small>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="color: var(--text-muted); font-size: 0.85rem;"></i>
+                    </div>
+
                     <div class="setting-toggle-row" onclick="toggleDarkTheme()" style="cursor: pointer;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div class="setting-icon-box"><i class="fa-solid fa-moon"></i></div>
@@ -1889,6 +1925,150 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('userProfileModal')">বন্ধ করুন</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 22. APP DOWNLOAD MODAL (ANDROID & IOS BUILDS)                           -->
+    <!-- ========================================================================= -->
+    <div class="modal" id="appDownloadModal" style="display: none;">
+        <div class="modal-backdrop" onclick="closeModal('appDownloadModal')"></div>
+        <div class="modal-card modal-lg app-download-modal-card">
+            <div class="modal-header">
+                <div>
+                    <h3 style="display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-mobile-screen-button" style="color: var(--primary);"></i>
+                        EduCheck মোবাইল অ্যাপ
+                    </h3>
+                    <small class="text-muted">Android ও iOS ডিভাইসের অফিশিয়াল ইনস্টল ফাইল</small>
+                </div>
+                <button class="modal-close-btn" onclick="closeModal('appDownloadModal')">&times;</button>
+            </div>
+            
+            <div class="modal-body app-download-modal-body">
+                
+                <!-- Hero Intro Banner -->
+                <div class="app-hero-banner">
+                    <div class="app-hero-badge">⚡ ফাস্ট & রেসপনসিভ</div>
+                    <h2>ডিজিটাল খাতা ও হোমওয়ার্ক এখন আরও সহজ</h2>
+                    <p>সরাসরি ক্যামেরা দিয়ে খাতার নিখুঁত ছবি তোলা, তাৎক্ষণিক নোটিফিকেশন এবং দ্রুত রেজাল্ট পেতে EduCheck অ্যাপটি ইনস্টল করে নিন।</p>
+                </div>
+
+                <!-- Platform Download Grid -->
+                <div class="app-download-grid">
+                    
+                    <!-- Android Card -->
+                    <div class="platform-download-card android-card">
+                        <div class="platform-card-header">
+                            <div class="platform-icon android-glow">
+                                <i class="fa-brands fa-android"></i>
+                            </div>
+                            <div class="platform-title-info">
+                                <h4>Android অ্যাপ (APK)</h4>
+                                <span class="platform-pill pill-android">v1.0 • 9.8 MB • অফিশিয়াল APK</span>
+                            </div>
+                        </div>
+
+                        <ul class="platform-feature-list">
+                            <li><i class="fa-solid fa-circle-check"></i> <strong>ক্যামেরা ইন্টিগ্রেশন:</strong> সরাসরি খাতার ছবি তুলে ক্রপ ও জমা দিন</li>
+                            <li><i class="fa-solid fa-circle-check"></i> <strong>পুশ নোটিফিকেশন:</strong> খাতা চেক বা নোটিশ পাবলিশ হলে সাথে সাথে অ্যালার্ট</li>
+                            <li><i class="fa-solid fa-circle-check"></i> <strong>স্মুথ পারফরম্যান্স:</strong> লো-এন্ড ফোনেও সুপার ফাস্ট কাজ করে</li>
+                        </ul>
+
+                        <div class="platform-action-box">
+                            <a href="downloads/EduCheck-Android-v1.0.apk" download="EduCheck-Android-v1.0.apk" onclick="handleDirectDownload(event, 'downloads/EduCheck-Android-v1.0.apk', 'EduCheck-Android-v1.0.apk')" class="btn btn-success btn-block btn-lg app-direct-dl-btn">
+                                <i class="fa-solid fa-download"></i>
+                                <span>Android APK ডাউনলোড (৯.৮ MB)</span>
+                            </a>
+                            <div class="alt-dl-row">
+                                <button type="button" class="alt-dl-link-btn" onclick="forceDownloadFile('downloads/EduCheck-Android-v1.0.apk', 'EduCheck-Android-v1.0.apk')">
+                                    <i class="fa-solid fa-cloud-arrow-down"></i> বিকল্প ডাউনলোড লিংক
+                                </button>
+                                <span class="alt-dl-divider">•</span>
+                                <button type="button" class="alt-dl-link-btn" onclick="openFileInNewTab('downloads/EduCheck-Android-v1.0.apk')">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> সরাসরি ব্রাউজারে
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="install-instructions">
+                            <h5><i class="fa-solid fa-circle-info"></i> কিভাবে ইনস্টল করবেন?</h5>
+                            <ol>
+                                <li>উপরের সবুজ <strong>"Android APK ডাউনলোড"</strong> বাটনে ক্লিক করে ফাইলটি নামিয়ে নিন।</li>
+                                <li>ডাউনলোড শেষ হলে নোটিফিকেশন বার থেকে ফাইলে চাপ দিন।</li>
+                                <li>যদি <em>"Install unknown apps"</em> বা নিরাপত্তা সতর্কতা দেখায়, তবে Settings থেকে <strong>Allow from this source</strong> চালু করুন।</li>
+                                <li><strong>Install</strong> এ ট্যাপ করলেই অ্যাপ ব্যবহারের জন্য প্রস্তুত হয়ে যাবে!</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- iOS Simulator & Build Card -->
+                    <div class="platform-download-card ios-card">
+                        <div class="platform-card-header">
+                            <div class="platform-icon ios-glow">
+                                <i class="fa-brands fa-apple"></i>
+                            </div>
+                            <div class="platform-title-info">
+                                <h4>Apple iOS বিল্ড</h4>
+                                <span class="platform-pill pill-ios">v1.0 • 3.5 MB • Simulator / App Build</span>
+                            </div>
+                        </div>
+
+                        <ul class="platform-feature-list">
+                            <li><i class="fa-solid fa-circle-check"></i> <strong>iPhone & iPad অপ্টিমাইজড:</strong> মসৃণ UI এবং রেটিনা ডিসপ্লে</li>
+                            <li><i class="fa-solid fa-circle-check"></i> <strong>অ্যাপ্রুভড বিল্ড:</strong> Simulator ও Sideloading প্রস্তুত</li>
+                            <li><i class="fa-solid fa-circle-check"></i> <strong>ডার্ক মোড সাপোর্ট:</strong> iOS নেটিভ ভাইব্রেন্ট থিম</li>
+                        </ul>
+
+                        <div class="platform-action-box">
+                            <a href="downloads/EduCheck-iOS-Simulator-v1.0.zip" download="EduCheck-iOS-Simulator-v1.0.zip" onclick="handleDirectDownload(event, 'downloads/EduCheck-iOS-Simulator-v1.0.zip', 'EduCheck-iOS-Simulator-v1.0.zip')" class="btn btn-primary btn-block btn-lg app-direct-dl-btn">
+                                <i class="fa-solid fa-download"></i>
+                                <span>iOS Build ZIP ডাউনলোড (৩.৫ MB)</span>
+                            </a>
+                            <div class="alt-dl-row">
+                                <button type="button" class="alt-dl-link-btn" onclick="forceDownloadFile('downloads/EduCheck-iOS-Simulator-v1.0.zip', 'EduCheck-iOS-Simulator-v1.0.zip')">
+                                    <i class="fa-solid fa-cloud-arrow-down"></i> বিকল্প ডাউনলোড লিংক
+                                </button>
+                                <span class="alt-dl-divider">•</span>
+                                <button type="button" class="alt-dl-link-btn" onclick="openFileInNewTab('downloads/EduCheck-iOS-Simulator-v1.0.zip')">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> সরাসরি ব্রাউজারে
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="install-instructions">
+                            <h5><i class="fa-solid fa-circle-info"></i> কিভাবে রান/ইনস্টল করবেন?</h5>
+                            <ol>
+                                <li>উপরের নীল <strong>"iOS Build ZIP ডাউনলোড"</strong> বাটনে ট্যাপ করে জিপ ফাইলটি সেভ করুন।</li>
+                                <li>Mac এ জিপ ফাইলটি এক্সট্র্যাক্ট করে Xcode Simulator এ ড্র্যাগ অ্যান্ড ড্রপ (Drag & Drop) করুন।</li>
+                                <li>iPhone ডিভাইসে সরাসরি লোড করতে AltStore বা Sideloadly এর মাধ্যমে ইনস্টল করুন।</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Web Version Notice / Quick Share -->
+                <div class="app-share-footer">
+                    <div class="app-share-info">
+                        <strong><i class="fa-solid fa-share-nodes"></i> বন্ধুদের ও সহপাঠীদের সাথে শেয়ার করুন</strong>
+                        <p>যেকোনো ব্রাউজারে বা অ্যাপে এক ক্লিকেই লগইন করা যাবে</p>
+                    </div>
+                    <div class="app-share-buttons">
+                        <button type="button" class="btn btn-outline" onclick="copyAppDownloadLink()">
+                            <i class="fa-solid fa-copy"></i> লিংক কপি করুন
+                        </button>
+                        <button type="button" class="btn btn-whatsapp" onclick="shareAppDownloadWhatsApp()">
+                            <i class="fa-brands fa-whatsapp"></i> WhatsApp এ শেয়ার
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('appDownloadModal')">বন্ধ করুন</button>
             </div>
         </div>
     </div>

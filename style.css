@@ -4308,3 +4308,482 @@ body.dark-theme .user-nav-name {
     transform: scale(0.93) !important;
 }
 
+/* ==========================================================================
+   APP DOWNLOAD COMPONENT STYLES (NAVBAR, BANNER, MODAL & CARDS)
+   ========================================================================== */
+.app-download-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(16, 185, 129, 0.12));
+    border: 1.5px solid rgba(99, 102, 241, 0.35);
+    border-radius: var(--radius-full);
+    color: var(--primary);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-download-nav-btn i {
+    font-size: 0.95rem;
+    color: #10b981;
+}
+
+.app-download-nav-btn:hover {
+    background: linear-gradient(135deg, #4f46e5, #10b981);
+    color: #ffffff;
+    border-color: transparent;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(79, 70, 229, 0.25);
+}
+
+.app-download-nav-btn:hover i {
+    color: #ffffff;
+}
+
+/* Auth Section App Download Banner */
+.auth-app-download-banner {
+    margin-top: 1.5rem;
+    background: linear-gradient(135deg, #1e1b4b, #312e81);
+    border: 1px solid rgba(165, 180, 252, 0.2);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    color: #ffffff;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s ease;
+    box-shadow: 0 8px 24px rgba(30, 27, 75, 0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.auth-app-download-banner:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px rgba(79, 70, 229, 0.35);
+    border-color: rgba(165, 180, 252, 0.4);
+}
+
+.banner-badge {
+    align-self: flex-start;
+    background: rgba(16, 185, 129, 0.25);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+}
+
+.banner-body {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.banner-icons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.75rem;
+}
+
+.banner-android-icon {
+    color: #3ddc84;
+}
+
+.banner-apple-icon {
+    color: #f8fafc;
+}
+
+.banner-info h4 {
+    margin: 0 0 3px 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.banner-info p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+    line-height: 1.35;
+}
+
+.banner-cta-btn {
+    align-self: flex-start;
+    background: #ffffff;
+    color: #1e1b4b;
+    font-weight: 700;
+    border-radius: var(--radius-md);
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    border: none;
+    transition: all 0.2s ease;
+}
+
+.banner-cta-btn:hover {
+    background: #f1f5f9;
+    color: #4f46e5;
+}
+
+/* App Download Modal Card */
+.app-download-modal-card {
+    max-width: 820px !important;
+}
+
+.app-download-modal-body {
+    padding: 1.25rem 1.5rem !important;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.app-hero-banner {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(16, 185, 129, 0.08));
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
+    text-align: center;
+}
+
+.app-hero-badge {
+    display: inline-block;
+    background: var(--primary);
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 3px 12px;
+    border-radius: var(--radius-full);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.app-hero-banner h2 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0 0 6px 0;
+}
+
+.app-hero-banner p {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    margin: 0;
+    max-width: 620px;
+    margin: 0 auto;
+    line-height: 1.45;
+}
+
+.app-download-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+@media (max-width: 700px) {
+    .app-download-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.platform-download-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.25s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+.platform-download-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+}
+
+.android-card {
+    border-top: 4px solid #10b981;
+}
+
+.ios-card {
+    border-top: 4px solid var(--primary);
+}
+
+.platform-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1rem;
+}
+
+.platform-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    flex-shrink: 0;
+}
+
+.android-glow {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+}
+
+.ios-glow {
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--primary);
+}
+
+.platform-title-info h4 {
+    margin: 0 0 3px 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.platform-pill {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+}
+
+.pill-android {
+    background: rgba(16, 185, 129, 0.15);
+    color: #059669;
+}
+
+.pill-ios {
+    background: rgba(99, 102, 241, 0.15);
+    color: #4f46e5;
+}
+
+.platform-feature-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.25rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.platform-feature-list li {
+    font-size: 0.84rem;
+    color: var(--text-main);
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.4;
+}
+
+.platform-feature-list li i {
+    color: #10b981;
+    font-size: 0.85rem;
+    margin-top: 3px;
+    flex-shrink: 0;
+}
+
+.app-direct-dl-btn {
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 700;
+    padding: 12px 18px;
+    font-size: 0.95rem;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    border-radius: var(--radius-lg);
+}
+
+.install-instructions {
+    margin-top: 1rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+}
+
+.install-instructions h5 {
+    margin: 0 0 6px 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.install-instructions ol {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.install-instructions li {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.install-instructions li strong {
+    color: var(--text-main);
+}
+
+.app-share-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 12px 16px;
+}
+
+.app-share-info strong {
+    font-size: 0.88rem;
+    color: var(--text-main);
+    display: block;
+    margin-bottom: 2px;
+}
+
+.app-share-info p {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.app-share-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-whatsapp {
+    background: #25d366;
+    color: #ffffff;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--radius-md);
+    padding: 8px 14px;
+    font-size: 0.84rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-whatsapp:hover {
+    background: #128c7e;
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+}
+
+/* Dark Theme Adaptations for App Download */
+body.dark-theme .app-download-nav-btn {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #a5b4fc;
+}
+
+body.dark-theme .app-hero-banner {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(16, 185, 129, 0.12));
+    border-color: #334155;
+}
+
+body.dark-theme .app-hero-banner h2 {
+    color: #f8fafc;
+}
+
+body.dark-theme .platform-download-card {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+body.dark-theme .platform-title-info h4 {
+    color: #f8fafc;
+}
+
+body.dark-theme .pill-android {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+}
+
+body.dark-theme .pill-ios {
+    background: rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+}
+
+body.dark-theme .platform-feature-list li {
+    color: #e2e8f0;
+}
+
+body.dark-theme .install-instructions,
+body.dark-theme .app-share-footer {
+    background: #0f172a;
+    border-color: #334155;
+}
+
+body.dark-theme .install-instructions li strong,
+body.dark-theme .app-share-info strong {
+    color: #f8fafc;
+}
+
+.alt-dl-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.alt-dl-link-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+    text-decoration: underline;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    transition: color 0.15s ease;
+}
+
+.alt-dl-link-btn:hover {
+    color: var(--primary);
+}
+
+.alt-dl-divider {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+body.dark-theme .alt-dl-link-btn {
+    color: #94a3b8;
+}
+
+body.dark-theme .alt-dl-link-btn:hover {
+    color: #a5b4fc;
+}
+

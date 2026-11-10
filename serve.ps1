@@ -37,11 +37,17 @@ try {
                     ".png"  { "image/png" }
                     ".jpg"  { "image/jpeg" }
                     ".jpeg" { "image/jpeg" }
+                    ".apk"  { "application/vnd.android.package-archive" }
+                    ".zip"  { "application/zip" }
                     default { "application/octet-stream" }
                 }
 
                 $response.ContentType = $contentType
                 $response.Headers.Add("Access-Control-Allow-Origin", "*")
+                if ($ext -in ".apk", ".zip") {
+                    $fileName = [System.IO.Path]::GetFileName($filePath)
+                    $response.Headers.Add("Content-Disposition", "attachment; filename=`"$fileName`"")
+                }
                 $response.StatusCode = 200
 
                 $bytes = [System.IO.File]::ReadAllBytes($filePath)
