@@ -11,11 +11,21 @@ const state = {
     assignments: [],
     submissions: [],
     notifications: [],
+    attendance: [],
+    doubts: [],
+    studyMaterials: [],
+    notices: [],
     currentEvaluatingSubmission: null,
     currentEvaluatingPageIndex: 0,
     evaluator: null,
     selectedUploadImages: [],
-    otpCountdownTimer: null
+    otpCountdownTimer: null,
+    selectedAttendanceDate: new Date().toISOString().split('T')[0],
+    currentDoubtToResolve: null,
+    doubtMediaRecorder: null,
+    doubtAudioChunks: [],
+    currentDoubtAudioBlob: null,
+    currentViewingNotice: null
 };
 
 // Blank Baseline State (No Mock Dummy Data - 100% Fresh & Clean)
@@ -28,16 +38,31 @@ const DEMO_SUBMISSIONS = [];
 // INITIALIZATION
 // ==========================================================================
 document.addEventListener("DOMContentLoaded", async () => {
+    // 0. Initialize theme immediately
+    initTheme();
+
+    // 1. Immediately restore session synchronously to eliminate any login screen flash
+    checkRememberedSession();
+
     if (typeof initFirebaseApp === 'function') {
         initFirebaseApp();
     }
     await initDatabase();
     initEvaluatorCanvas();
     initOtpInputAutoJump();
-    checkRememberedSession();
+
+    // 2. Refresh active session with latest database data
+    syncRememberedSessionWithDb();
+
     renderAllViews();
     setupRealtimeFirebaseListeners();
     initExamCountdownTicking();
+    updateLiveNoticeAlert();
+
+    // 3. Smoothly dismiss fast App Splash Screen
+    setTimeout(() => {
+        hideSplashScreen();
+    }, 750);
 });
 
 /**
@@ -46,7 +71,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 function setupRealtimeFirebaseListeners() {
     if (typeof fbFirestore !== 'undefined' && fbFirestore) {
         try {
-            // Listen for new submissions in real-time
+            // 1. Listen for submissions in real-time
             fbFirestore.collection("submissions").onSnapshot((snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     const data = change.doc.data();
@@ -85,7 +110,87 @@ function setupRealtimeFirebaseListeners() {
                     renderStudentDashboard();
                 }
             });
-            console.log("📡 Real-time Firestore sync active");
+
+            // 2. Listen for daily attendance in real-time
+            fbFirestore.collection("attendance").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    const index = state.attendance.findIndex(a => a.id === data.id);
+                    if (index === -1) {
+                        state.attendance.push(data);
+                    } else {
+                        state.attendance[index] = data;
+                    }
+                    window.dbStorage.setLocal("attendance", data);
+                });
+                if (state.currentUser?.role === 'teacher') {
+                    loadAttendanceForSelectedDate();
+                } else if (state.currentUser?.role === 'student') {
+                    renderStudentDashboard();
+                }
+            });
+
+            // 3. Listen for doubts / questions in real-time
+            fbFirestore.collection("doubts").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    const index = state.doubts.findIndex(d => d.id === data.id);
+                    if (change.type === "added") {
+                        if (index === -1) state.doubts.unshift(data);
+                        else state.doubts[index] = data;
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.doubts[index] = data;
+                        else state.doubts.unshift(data);
+                    }
+                    window.dbStorage.setLocal("doubts", data);
+                });
+                if (state.currentUser?.role === 'teacher') {
+                    renderTeacherDoubts();
+                } else if (state.currentUser?.role === 'student') {
+                    renderStudentDoubts();
+                }
+            });
+
+            // 4. Listen for study materials in real-time
+            fbFirestore.collection("study_materials").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    const index = state.studyMaterials.findIndex(m => m.id === data.id);
+                    if (index === -1) {
+                        state.studyMaterials.unshift(data);
+                    } else {
+                        state.studyMaterials[index] = data;
+                    }
+                    window.dbStorage.setLocal("study_materials", data);
+                });
+                if (state.currentUser?.role === 'teacher') {
+                    renderTeacherStudyMaterials();
+                } else if (state.currentUser?.role === 'student') {
+                    renderStudentStudyMaterials();
+                }
+            });
+
+            // 5. Listen for notice board broadcasts in real-time
+            fbFirestore.collection("notices").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    const index = state.notices.findIndex(n => n.id === data.id);
+                    if (index === -1) {
+                        state.notices.unshift(data);
+                    } else {
+                        state.notices[index] = data;
+                    }
+                    window.dbStorage.setLocal("notices", data);
+                });
+                updateLiveNoticeAlert();
+                if (state.currentUser?.role === 'teacher') {
+                    renderTeacherNotices();
+                } else if (state.currentUser?.role === 'student') {
+                    renderStudentNotices();
+                }
+            });
+
+            console.log("📡 Real-time Firestore sync active for all collections (Khata, Attendance, Doubts, Notes, Notices)");
         } catch (err) {
             console.warn("Real-time listener notice:", err);
         }
@@ -141,11 +246,15 @@ async function initDatabase() {
             return;
         }
 
-        const [students, assigns, subs, notifs] = await Promise.all([
+        const [students, assigns, subs, notifs, atts, doubts, materials, notices] = await Promise.all([
             window.dbStorage.getAll("students"),
             window.dbStorage.getAll("assignments"),
             window.dbStorage.getAll("submissions"),
-            window.dbStorage.getAll("notifications")
+            window.dbStorage.getAll("notifications"),
+            window.dbStorage.getAll("attendance"),
+            window.dbStorage.getAll("doubts"),
+            window.dbStorage.getAll("study_materials"),
+            window.dbStorage.getAll("notices")
         ]);
 
         const DEMO_NAMES = ["সাদিয়া আহমেদ", "সাকিব আল হাসান", "আরিফুল ইসলাম", "নুসরাত জাহান", "তানভীর আহমেদ", "রাফি হাসান", "aaa"];
@@ -175,12 +284,20 @@ async function initDatabase() {
         state.assignments = assigns || [];
         state.submissions = cleanSubs;
         state.notifications = notifs || [];
+        state.attendance = atts || [];
+        state.doubts = doubts || [];
+        state.studyMaterials = materials || [];
+        state.notices = notices || [];
     } catch (e) {
         console.warn("Storage sync:", e);
         state.students = [];
         state.assignments = [];
         state.submissions = [];
         state.notifications = [];
+        state.attendance = [];
+        state.doubts = [];
+        state.studyMaterials = [];
+        state.notices = [];
     }
 }
 
@@ -340,8 +457,47 @@ function switchAuthTab(role) {
 window.switchAuthTab = switchAuthTab;
 
 /**
- * Student requests OTP for SIM / Mobile number
+ * Normalize Bengali numerals (০-৯) to English ASCII digits (0-9)
  */
+function normalizeDigits(str) {
+    if (!str) return '';
+    const bnDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+    return String(str).replace(/[০-৯]/g, d => bnDigits.indexOf(d));
+}
+window.normalizeDigits = normalizeDigits;
+
+/**
+ * Switch between Student Login sub-tab and Student Register sub-tab
+ */
+function switchStudentAuthSubTab(subTab) {
+    const tabLogin = document.getElementById("subTabStudentLogin");
+    const tabRegister = document.getElementById("subTabStudentRegister");
+    const formLogin = document.getElementById("studentPhoneForm");
+    const formRegister = document.getElementById("studentRegisterForm");
+    const multiSelector = document.getElementById("multiAccountSelector");
+
+    if (subTab === 'register') {
+        tabLogin?.classList.remove("active");
+        tabRegister?.classList.add("active");
+        if (formLogin) formLogin.style.display = "none";
+        if (multiSelector) multiSelector.style.display = "none";
+        if (formRegister) {
+            formRegister.style.display = "block";
+            formRegister.classList.add("active");
+        }
+    } else {
+        tabLogin?.classList.add("active");
+        tabRegister?.classList.remove("active");
+        if (formRegister) formRegister.style.display = "none";
+        if (multiSelector) multiSelector.style.display = "none";
+        if (formLogin) {
+            formLogin.style.display = "block";
+            formLogin.classList.add("active");
+        }
+    }
+}
+window.switchStudentAuthSubTab = switchStudentAuthSubTab;
+
 /**
  * Student Fast Login with Phone / ID (Direct Access - No OTP)
  */
@@ -356,7 +512,13 @@ async function handleStudentLoginDirect(event) {
     }
 
     try {
-        const query = document.getElementById("studentPhoneInput").value.trim();
+        const rawQuery = document.getElementById("studentPhoneInput").value.trim();
+        const query = normalizeDigits(rawQuery);
+
+        if (!query) {
+            showToast("মোবাইল নম্বর বা শিক্ষার্থী আইডি প্রদান করুন", "warning");
+            return;
+        }
 
         // Clean & normalize query for flexible phone and ID matching
         const cleanQuery = query.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
@@ -372,21 +534,36 @@ async function handleStudentLoginDirect(event) {
         // Find students by phone or ID
         const matchingStudents = state.students.filter(s => {
             const sId = (s.id || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
-            const sPhoneDigits = (s.phone || '').replace(/[^0-9]/g, '');
+            const sPhone = normalizeDigits(s.phone || '');
+            const sPhoneDigits = sPhone.replace(/[^0-9]/g, '');
             const sStandardPhone = sPhoneDigits.startsWith('880') ? sPhoneDigits.substring(2) : sPhoneDigits;
 
             return (
                 s.phone === query ||
+                sPhone === query ||
                 (cleanPhoneDigits.length >= 6 && sPhoneDigits === cleanPhoneDigits) ||
                 (standardPhoneQuery.length >= 6 && sStandardPhone === standardPhoneQuery) ||
-                s.id.toLowerCase() === query.toLowerCase() ||
+                (s.id && s.id.toLowerCase() === query.toLowerCase()) ||
                 sId === cleanQuery
             );
         });
 
-        // If no matching student is found, do NOT auto-register. Only teacher-registered students can log in!
+        // If no matching student is found: smoothly guide them to register with their name!
         if (!matchingStudents || matchingStudents.length === 0) {
-            showToast("❌ এই নম্বর বা আইডি দিয়ে কোনো শিক্ষার্থী নিবন্ধিত নেই! প্রথমে শিক্ষক প্যানেল থেকে শিক্ষার্থী যুক্ত করতে হবে।", "error");
+            switchStudentAuthSubTab('register');
+            const regPhoneInput = document.getElementById("regStudentPhone");
+            if (regPhoneInput) {
+                regPhoneInput.value = query;
+            }
+            const noticeEl = document.getElementById("regNoticeBanner");
+            if (noticeEl) {
+                noticeEl.innerHTML = `<i class="fa-solid fa-circle-info"></i> <strong>এই নম্বরটি (${query}) নতুন!</strong> অনুগ্রহ করে নিচে আপনার নাম লিখে <strong>'শিক্ষার্থী নিবন্ধন ও প্রবেশ'</strong> বাটনে চাপ দিন।`;
+                noticeEl.style.display = "block";
+            }
+            showToast("💡 এই নম্বরটি নতুন! আপনার নাম লিখে সরাসরি প্রবেশ করুন", "info");
+            setTimeout(() => {
+                document.getElementById("regStudentName")?.focus();
+            }, 100);
             return;
         }
 
@@ -405,15 +582,94 @@ async function handleStudentLoginDirect(event) {
     } finally {
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = `সরাসরি প্রবেশ করুন <i class="fa-solid fa-arrow-right"></i>`;
+            submitBtn.innerHTML = `<span>শিক্ষার্থী পোর্টালে প্রবেশ করুন</span> <i class="fa-solid fa-arrow-right-to-bracket"></i>`;
         }
     }
 }
+window.handleStudentLoginDirect = handleStudentLoginDirect;
+
+/**
+ * Handle Student Self-Registration
+ */
+async function handleStudentSelfRegister(event) {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    const submitBtn = document.getElementById("btnStudentRegisterSubmit");
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> নিবন্ধন হচ্ছে...`;
+    }
+
+    try {
+        const rawName = document.getElementById("regStudentName").value.trim();
+        const rawPhone = document.getElementById("regStudentPhone").value.trim();
+        const studentClass = document.getElementById("regStudentClass").value;
+        const subject = document.getElementById("regStudentSubject").value;
+
+        if (!rawName) {
+            showToast("দয়া করে আপনার পুরো নাম লিখুন", "warning");
+            document.getElementById("regStudentName")?.focus();
+            return;
+        }
+
+        const phone = normalizeDigits(rawPhone);
+        if (!phone || phone.length < 6) {
+            showToast("সঠিক মোবাইল নম্বর প্রদান করুন", "warning");
+            document.getElementById("regStudentPhone")?.focus();
+            return;
+        }
+
+        // Check if existing student matches this phone & name
+        const cleanPhoneDigits = phone.replace(/[^0-9]/g, '');
+        const existingStudent = state.students.find(s => {
+            const sDigits = (normalizeDigits(s.phone) || '').replace(/[^0-9]/g, '');
+            return (sDigits === cleanPhoneDigits) && (s.name.trim().toLowerCase() === rawName.toLowerCase());
+        });
+
+        if (existingStudent) {
+            loginAsStudent(existingStudent);
+            showToast(`স্বাগতম ${existingStudent.name}! শিক্ষার্থী পোর্টালে প্রবেশ করেছেন।`, "success");
+            return;
+        }
+
+        // Create new student with sequential ID
+        const newStudentId = generateNextStudentId();
+        const newStudent = {
+            id: newStudentId,
+            name: rawName,
+            phone: phone,
+            class: studentClass || "Class 10",
+            subject: subject || "বিজ্ঞান শাখা",
+            avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=Student_${newStudentId}`,
+            isOtpVerified: true,
+            joinedAt: new Date().toISOString()
+        };
+
+        state.students.push(newStudent);
+        try {
+            await window.dbStorage.set("students", newStudent);
+        } catch (e) {
+            console.warn("Storage notice:", e);
+        }
+
+        loginAsStudent(newStudent);
+        showToast(`🎉 স্বাগতম ${newStudent.name}! আপনার শিক্ষার্থী আইডি: ${newStudent.id}`, "success");
+    } catch (err) {
+        showToast("নিবন্ধন ত্রুটি: " + err.message, "error");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<span>শিক্ষার্থী নিবন্ধন ও প্রবেশ করুন</span> <i class="fa-solid fa-arrow-right"></i>`;
+        }
+    }
+}
+window.handleStudentSelfRegister = handleStudentSelfRegister;
 
 function changeStudentPhone() {
+    switchStudentAuthSubTab('login');
     document.getElementById("studentPhoneForm").style.display = "block";
     document.getElementById("multiAccountSelector").style.display = "none";
 }
+window.changeStudentPhone = changeStudentPhone;
 
 /**
  * Render multi-account selector cards when multiple students share the same SIM
@@ -472,32 +728,91 @@ function quickFillStudent(phone) {
     document.getElementById("studentPhoneForm").dispatchEvent(new Event("submit"));
 }
 
+// Fixed Teacher Credentials Configuration & Helper
+const AUTHORIZED_TEACHER_CREDENTIALS = {
+    emails: [
+        "teacher@gmail.com",
+        "teacher@educheck.com",
+        "afiq@gmail.com",
+        "afiq@educheck.com",
+        "teacher",
+        "afiq"
+    ],
+    password: "123456"
+};
+
+function getAuthorizedTeacherCredentials() {
+    try {
+        const custom = localStorage.getItem("educheck_teacher_credentials");
+        if (custom) {
+            const parsed = JSON.parse(custom);
+            if (parsed && parsed.email && parsed.password) {
+                return {
+                    name: parsed.name || "আফিক স্যার",
+                    emails: [parsed.email.toLowerCase().trim(), ...AUTHORIZED_TEACHER_CREDENTIALS.emails],
+                    password: parsed.password
+                };
+            }
+        }
+    } catch (e) {
+        console.warn("Failed to read custom teacher credentials", e);
+    }
+    return {
+        name: "আফিক স্যার",
+        emails: AUTHORIZED_TEACHER_CREDENTIALS.emails,
+        password: AUTHORIZED_TEACHER_CREDENTIALS.password
+    };
+}
+window.getAuthorizedTeacherCredentials = getAuthorizedTeacherCredentials;
+
 /**
- * Teacher Login handler
+ * Teacher Login handler with strict credential validation
  */
 function handleTeacherLogin(event) {
     if (event && typeof event.preventDefault === 'function') event.preventDefault();
-    const email = document.getElementById("teacherEmailInput").value.trim();
-    const pass = document.getElementById("teacherPasswordInput").value;
+    const emailInput = document.getElementById("teacherEmailInput");
+    const passInput = document.getElementById("teacherPasswordInput");
+    const email = (emailInput?.value || "").trim();
+    const pass = passInput?.value || "";
 
-    if (pass.length < 4) {
-        showToast("কমপক্ষে ৪ অক্ষরের পাসওয়ার্ড দিন (ডিফল্ট: 123456)", "error");
+    if (!email) {
+        showToast("শিক্ষকের জিমেইল বা আইডি প্রদান করুন", "warning");
+        emailInput?.focus();
+        return;
+    }
+
+    if (!pass) {
+        showToast("পাসওয়ার্ড প্রদান করুন", "warning");
+        passInput?.focus();
+        return;
+    }
+
+    const activeCreds = getAuthorizedTeacherCredentials();
+    const cleanEmail = email.toLowerCase().trim();
+    const isEmailValid = activeCreds.emails.some(
+        validEmail => validEmail.toLowerCase() === cleanEmail
+    );
+    const isPassValid = (pass === activeCreds.password);
+
+    if (!isEmailValid || !isPassValid) {
+        showToast("❌ ভুল জিমেইল অথবা পাসওয়ার্ড! শুধুমাত্র অনুমোদিত শিক্ষক একাউন্ট দিয়ে প্রবেশ করা যাবে।", "error");
+        if (passInput) {
+            passInput.value = "";
+            passInput.focus();
+        }
         return;
     }
 
     const teacherUser = {
         role: "teacher",
-        name: "আফিক স্যার (শিক্ষক)",
-        email: email || "teacher@educheck.com",
+        name: `${activeCreds.name} (শিক্ষক)`,
+        email: email,
         avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherAfiq"
     };
 
-    if (document.getElementById("rememberTeacher").checked) {
-        localStorage.setItem("educheck_saved_role", "teacher");
-    }
-
+    localStorage.setItem("educheck_saved_role", "teacher");
     loginAsTeacher(teacherUser);
-    showToast("শিক্ষক পোর্টালে স্বাগতম!", "success");
+    showToast(`শিক্ষক পোর্টালে স্বাগতম, ${activeCreds.name}!`, "success");
 }
 window.handleTeacherLogin = handleTeacherLogin;
 
@@ -505,6 +820,7 @@ function loginAsStudent(student) {
     if (!student) return;
     state.currentUser = { role: "student", ...student };
     localStorage.setItem("educheck_saved_role", "student");
+    localStorage.setItem("educheck_current_user", JSON.stringify(state.currentUser));
     if (student.phone) {
         localStorage.setItem("educheck_saved_student_phone", student.phone);
     }
@@ -512,28 +828,89 @@ function loginAsStudent(student) {
 }
 
 function loginAsTeacher(teacher) {
-    state.currentUser = teacher;
+    if (!teacher) return;
+    state.currentUser = { role: "teacher", ...teacher };
+    localStorage.setItem("educheck_saved_role", "teacher");
+    localStorage.setItem("educheck_current_user", JSON.stringify(state.currentUser));
     applyAuthStateUI();
 }
 
 function checkRememberedSession() {
-    const savedRole = localStorage.getItem("educheck_saved_role");
-    if (savedRole === "teacher") {
-        loginAsTeacher({
-            role: "teacher",
-            name: "আফিক স্যার (শিক্ষক)",
-            email: "teacher@educheck.com",
-            avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherAfiq"
-        });
-    } else if (savedRole === "student") {
-        const savedPhone = localStorage.getItem("educheck_saved_student_phone");
-        if (savedPhone) {
-            const student = state.students.find(s => s.phone === savedPhone || s.id === savedPhone);
-            if (student) {
-                loginAsStudent(student);
-            } else {
-                localStorage.removeItem("educheck_saved_role");
-                localStorage.removeItem("educheck_saved_student_phone");
+    try {
+        const savedUserRaw = localStorage.getItem("educheck_current_user");
+        const savedRole = localStorage.getItem("educheck_saved_role");
+
+        if (savedUserRaw) {
+            try {
+                const parsed = JSON.parse(savedUserRaw);
+                if (parsed && parsed.role) {
+                    state.currentUser = parsed;
+                    applyAuthStateUI();
+                    return;
+                }
+            } catch (err) {
+                console.warn("Could not parse saved user:", err);
+            }
+        }
+
+        if (savedRole === "teacher") {
+            loginAsTeacher({
+                role: "teacher",
+                name: "আফিক স্যার (শিক্ষক)",
+                email: "teacher@educheck.com",
+                avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherAfiq"
+            });
+            return;
+        }
+
+        if (savedRole === "student") {
+            const savedPhone = localStorage.getItem("educheck_saved_student_phone");
+            if (savedPhone) {
+                const student = state.students?.find(s => s.phone === savedPhone || s.id === savedPhone);
+                if (student) {
+                    loginAsStudent(student);
+                } else {
+                    // Safe fallback object so user stays logged in without losing access
+                    state.currentUser = {
+                        role: "student",
+                        id: "STU-" + savedPhone.slice(-3),
+                        name: "শিক্ষার্থী (" + savedPhone.slice(-4) + ")",
+                        phone: savedPhone,
+                        class: "Class 10",
+                        group: "বিজ্ঞান শাখা",
+                        subject: "বিজ্ঞান শাখা",
+                        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${savedPhone}`
+                    };
+                    applyAuthStateUI();
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Session restore error:", e);
+    }
+}
+
+/**
+ * Synchronize remembered session with fresh data from database after init
+ */
+function syncRememberedSessionWithDb() {
+    if (!state.currentUser) return;
+    if (state.currentUser.role === "student" && state.currentUser.phone) {
+        const freshStudent = state.students?.find(s => s.phone === state.currentUser.phone || s.id === state.currentUser.id);
+        if (freshStudent) {
+            state.currentUser = { role: "student", ...freshStudent };
+            localStorage.setItem("educheck_current_user", JSON.stringify(state.currentUser));
+            applyAuthStateUI();
+        } else {
+            // If student exists in session but not in state.students array, persist to state.students
+            if (Array.isArray(state.students)) {
+                const exists = state.students.some(s => s.id === state.currentUser.id || s.phone === state.currentUser.phone);
+                if (!exists && state.currentUser.phone) {
+                    state.students.push(state.currentUser);
+                    if (window.dbStorage && typeof window.dbStorage.set === 'function') {
+                        window.dbStorage.set("students", state.currentUser).catch(err => console.warn(err));
+                    }
+                }
             }
         }
     }
@@ -543,6 +920,7 @@ function handleLogout() {
     state.currentUser = null;
     localStorage.removeItem("educheck_saved_role");
     localStorage.removeItem("educheck_saved_student_phone");
+    localStorage.removeItem("educheck_current_user");
     applyAuthStateUI();
     showToast("লগআউট সফল হয়েছে", "info");
 }
@@ -551,6 +929,9 @@ window.handleLogout = handleLogout;
 document.getElementById("logoutBtn")?.addEventListener("click", handleLogout);
 
 function applyAuthStateUI() {
+    // Remove session restoring anti-flicker class immediately
+    document.documentElement.classList.remove("session-restoring");
+
     const authSection = document.getElementById("authSection");
     const teacherPortal = document.getElementById("teacherPortalView");
     const studentPortal = document.getElementById("studentPortalView");
@@ -562,36 +943,41 @@ function applyAuthStateUI() {
     const teacherMobGroup = document.getElementById("teacherMobileNavGroup");
 
     if (!state.currentUser) {
-        authSection.style.display = "flex";
-        teacherPortal.style.display = "none";
-        studentPortal.style.display = "none";
-        userProfilePill.style.display = "none";
-        notifBtnWrapper.style.display = "none";
-        guestRoleSwitch.style.display = "flex";
-        if (mobileBottomNav) mobileBottomNav.style.display = "none";
+        document.body.classList.remove("is-logged-in");
+        document.body.classList.add("is-guest");
+        if (authSection) authSection.style.display = "flex";
+        if (teacherPortal) teacherPortal.style.display = "none";
+        if (studentPortal) studentPortal.style.display = "none";
+        if (userProfilePill) userProfilePill.style.display = "none";
+        if (notifBtnWrapper) notifBtnWrapper.style.display = "none";
+        if (guestRoleSwitch) guestRoleSwitch.style.display = "flex";
+        if (mobileBottomNav) mobileBottomNav.style.removeProperty("display");
         return;
     }
 
-    authSection.style.display = "none";
-    guestRoleSwitch.style.display = "none";
-    userProfilePill.style.display = "flex";
-    notifBtnWrapper.style.display = "block";
-    if (mobileBottomNav) mobileBottomNav.style.display = "flex";
+    document.body.classList.add("is-logged-in");
+    document.body.classList.remove("is-guest");
+
+    if (authSection) authSection.style.display = "none";
+    if (guestRoleSwitch) guestRoleSwitch.style.display = "none";
+    if (userProfilePill) userProfilePill.style.display = "flex";
+    if (notifBtnWrapper) notifBtnWrapper.style.display = "block";
+    if (mobileBottomNav) mobileBottomNav.style.removeProperty("display");
 
     document.getElementById("navUserName").textContent = state.currentUser.name;
     document.getElementById("navUserAvatar").src = state.currentUser.avatar;
 
     if (state.currentUser.role === "teacher") {
         document.getElementById("navUserRole").textContent = "শিক্ষক (অ্যাডমিন)";
-        teacherPortal.style.display = "block";
-        studentPortal.style.display = "none";
+        if (teacherPortal) teacherPortal.style.display = "block";
+        if (studentPortal) studentPortal.style.display = "none";
         if (studentMobGroup) studentMobGroup.style.display = "none";
         if (teacherMobGroup) teacherMobGroup.style.display = "flex";
         renderTeacherDashboard();
     } else {
-        document.getElementById("navUserRole").textContent = `শিক্ষার্থী (${state.currentUser.class})`;
-        teacherPortal.style.display = "none";
-        studentPortal.style.display = "block";
+        document.getElementById("navUserRole").textContent = `শিক্ষার্থী (${state.currentUser.class || 'Class 10'})`;
+        if (teacherPortal) teacherPortal.style.display = "none";
+        if (studentPortal) studentPortal.style.display = "block";
         if (studentMobGroup) studentMobGroup.style.display = "flex";
         if (teacherMobGroup) teacherMobGroup.style.display = "none";
         renderStudentDashboard();
@@ -614,17 +1000,40 @@ function switchTeacherTab(tabName) {
     document.querySelectorAll(".teacher-tab-pane").forEach(p => p.style.display = "none");
 
     if (tabName === 'submissions') {
-        document.getElementById("tabTeacherSubmissions").classList.add("active");
-        document.getElementById("paneSubmissions").style.display = "block";
+        document.getElementById("tabTeacherSubmissions")?.classList.add("active");
+        const pane = document.getElementById("paneSubmissions");
+        if (pane) pane.style.display = "block";
         renderTeacherSubmissions();
     } else if (tabName === 'students') {
-        document.getElementById("tabTeacherStudents").classList.add("active");
-        document.getElementById("paneStudents").style.display = "block";
+        document.getElementById("tabTeacherStudents")?.classList.add("active");
+        const pane = document.getElementById("paneStudents");
+        if (pane) pane.style.display = "block";
         renderTeacherStudentsList();
     } else if (tabName === 'assignments') {
-        document.getElementById("tabTeacherAssignments").classList.add("active");
-        document.getElementById("paneAssignments").style.display = "block";
+        document.getElementById("tabTeacherAssignments")?.classList.add("active");
+        const pane = document.getElementById("paneAssignments");
+        if (pane) pane.style.display = "block";
         renderTeacherAssignments();
+    } else if (tabName === 'attendance') {
+        document.getElementById("tabTeacherAttendance")?.classList.add("active");
+        const pane = document.getElementById("paneTeacherAttendance");
+        if (pane) pane.style.display = "block";
+        loadAttendanceForSelectedDate();
+    } else if (tabName === 'doubts') {
+        document.getElementById("tabTeacherDoubts")?.classList.add("active");
+        const pane = document.getElementById("paneTeacherDoubts");
+        if (pane) pane.style.display = "block";
+        renderTeacherDoubts();
+    } else if (tabName === 'studyMaterials') {
+        document.getElementById("tabTeacherStudyMaterials")?.classList.add("active");
+        const pane = document.getElementById("paneTeacherStudyMaterials");
+        if (pane) pane.style.display = "block";
+        renderTeacherStudyMaterials();
+    } else if (tabName === 'notices') {
+        document.getElementById("tabTeacherNotices")?.classList.add("active");
+        const pane = document.getElementById("paneTeacherNotices");
+        if (pane) pane.style.display = "block";
+        renderTeacherNotices();
     }
 }
 
@@ -635,6 +1044,10 @@ function renderTeacherDashboard() {
     const checkedKhata = state.submissions.filter(s => s.status === 'checked').length;
     const totalAssignments = state.assignments.length;
 
+    const pendingDoubts = state.doubts.filter(d => d.status === 'pending').length;
+    const doubtBadge = document.getElementById("teacherPendingDoubtsCount");
+    if (doubtBadge) doubtBadge.textContent = pendingDoubts;
+
     document.getElementById("statTotalStudents").textContent = totalStudents;
     document.getElementById("statPendingKhata").textContent = pendingKhata;
     document.getElementById("statCheckedKhata").textContent = checkedKhata;
@@ -642,6 +1055,7 @@ function renderTeacherDashboard() {
     document.getElementById("pendingSubCount").textContent = pendingKhata;
 
     renderTeacherSubmissions();
+    updateLiveNoticeAlert();
 }
 
 function renderTeacherSubmissions() {
@@ -720,10 +1134,20 @@ function renderTeacherSubmissions() {
                     ` : ''}
                 </div>
                 <div class="sub-card-footer">
-                    <button class="btn ${isPending ? 'btn-primary' : 'btn-outline'} btn-block" onclick="openKhataEvaluator('${sub.id}')">
-                        <i class="fa-solid ${isPending ? 'fa-pen-to-square' : 'fa-eye'}"></i>
-                        ${isPending ? 'খাতা দেখুন ও লাল কালিতে কাটুন' : 'পুনরায় মূল্যায়ন / পরিবর্তন'}
-                    </button>
+                    ${isPending ? `
+                        <button class="btn btn-primary btn-block" onclick="openKhataEvaluator('${sub.id}')">
+                            <i class="fa-solid fa-pen-to-square"></i> খাতা দেখুন ও লাল কালিতে কাটুন
+                        </button>
+                    ` : `
+                        <div style="display: flex; gap: 6px; width: 100%;">
+                            <button class="btn btn-outline" style="flex: 1;" onclick="openKhataEvaluator('${sub.id}')">
+                                <i class="fa-solid fa-eye"></i> খাতা দেখুন
+                            </button>
+                            <button class="btn btn-success" style="padding: 0.5rem 0.75rem;" onclick="sendWhatsAppKhataResult('${sub.id}')" title="অভিভাবকের WhatsApp এ ফলাফল পাঠান">
+                                <i class="fa-brands fa-whatsapp"></i> WhatsApp
+                            </button>
+                        </div>
+                    `}
                 </div>
             </div>
         `;
@@ -766,11 +1190,16 @@ function renderTeacherStudentsList() {
                 <div class="roster-name">${s.name}</div>
                 <div class="roster-meta">${s.class} • ${s.subject}</div>
                 <div class="roster-phone"><i class="fa-solid fa-phone"></i> ${s.phone}</div>
-                <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 0.75rem; color: #64748b; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 4px; flex-wrap: wrap;">
                     <span>আইডি: <strong>${s.id}</strong></span>
-                    <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="deleteStudent('${s.id}', '${s.name}')" title="শিক্ষার্থী মুছে ফেলুন" style="padding: 2px 8px; border-radius: 4px;">
-                        <i class="fa-solid fa-trash-can"></i> মুছুন
-                    </button>
+                    <div style="display: flex; gap: 4px;">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="openStudentReportCardModal('${s.id}')" title="মার্কশিট ও প্রগ্রেস রিপোর্ট" style="padding: 2px 7px; font-size: 0.74rem;">
+                            <i class="fa-solid fa-file-invoice"></i> রিপোর্ট
+                        </button>
+                        <button type="button" class="btn btn-ghost btn-sm text-danger" onclick="deleteStudent('${s.id}', '${s.name}')" title="শিক্ষার্থী মুছে ফেলুন" style="padding: 2px 6px; border-radius: 4px; font-size: 0.74rem;">
+                            <i class="fa-solid fa-trash-can"></i> মুছুন
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -881,7 +1310,8 @@ async function handleSaveNewStudent(event) {
 
     try {
         const name = document.getElementById("newStudentName").value.trim();
-        const phone = document.getElementById("newStudentPhone").value.trim();
+        const rawPhone = document.getElementById("newStudentPhone").value.trim();
+        const phone = normalizeDigits(rawPhone);
         const studentClass = document.getElementById("newStudentClass").value;
         const subject = document.getElementById("newStudentSubject").value.trim();
         const avatar = document.getElementById("previewStudentAvatar").src;
@@ -1013,6 +1443,16 @@ async function openKhataEvaluator(submissionId) {
     } else {
         document.getElementById("evaluationResultForm").reset();
         document.getElementById("evalMarksTotal").value = "20";
+    }
+
+    // Voice note initialization / restoration
+    discardVoiceRecording();
+    if (sub.evaluation && sub.evaluation.voiceNote) {
+        recordedVoiceBase64 = sub.evaluation.voiceNote;
+        const previewArea = document.getElementById("voicePreviewArea");
+        const audioPreview = document.getElementById("evalVoiceAudioPreview");
+        if (audioPreview) audioPreview.src = recordedVoiceBase64;
+        if (previewArea) previewArea.style.display = "flex";
     }
 
     renderEvaluatorPageThumbnails();
@@ -1178,6 +1618,7 @@ async function handleSaveEvaluation(event) {
             totalMarks,
             grade,
             remarks,
+            voiceNote: recordedVoiceBase64 || null,
             evaluatedAt: new Date().toISOString()
         };
 
@@ -1219,6 +1660,7 @@ async function handleSaveEvaluation(event) {
         }
 
         closeModal("khataEvaluatorModal");
+        discardVoiceRecording();
         renderTeacherDashboard();
         updateNotificationsUI();
 
@@ -1255,6 +1697,28 @@ function switchStudentTab(tabName) {
         const pane = document.getElementById("paneStudentLeaderboard");
         if (pane) pane.style.display = "block";
         renderStudentLeaderboard();
+    } else if (tabName === 'analytics') {
+        document.getElementById("tabStudentAnalytics")?.classList.add("active");
+        const pane = document.getElementById("paneStudentAnalytics");
+        if (pane) pane.style.display = "block";
+        const student = state.currentUser;
+        const mySubs = state.submissions.filter(s => s.studentId === student?.id && s.status === 'checked');
+        renderStudentPerformanceChart(student, mySubs);
+    } else if (tabName === 'doubts') {
+        document.getElementById("tabStudentDoubts")?.classList.add("active");
+        const pane = document.getElementById("paneStudentDoubts");
+        if (pane) pane.style.display = "block";
+        renderStudentDoubts();
+    } else if (tabName === 'studyMaterials') {
+        document.getElementById("tabStudentStudyMaterials")?.classList.add("active");
+        const pane = document.getElementById("paneStudentStudyMaterials");
+        if (pane) pane.style.display = "block";
+        renderStudentStudyMaterials();
+    } else if (tabName === 'notices') {
+        document.getElementById("tabStudentNotices")?.classList.add("active");
+        const pane = document.getElementById("paneStudentNotices");
+        if (pane) pane.style.display = "block";
+        renderStudentNotices();
     }
 }
 
@@ -1351,8 +1815,8 @@ async function renderStudentDashboard() {
 
     document.getElementById("studentProfileName").textContent = student.name;
     document.getElementById("studentProfileImg").src = student.avatar;
-    document.getElementById("studentProfileClass").innerHTML = `<i class="fa-solid fa-school"></i> ${student.class}`;
-    document.getElementById("studentProfileSub").innerHTML = `<i class="fa-solid fa-book"></i> ${student.subject}`;
+    document.getElementById("studentProfileClass").innerHTML = `<i class="fa-solid fa-school"></i> ${student.class || 'Class 10'}`;
+    document.getElementById("studentProfileSub").innerHTML = `<i class="fa-solid fa-book"></i> ${student.subject || student.group || 'বিজ্ঞান শাখা'}`;
     document.getElementById("studentProfileId").innerHTML = `<i class="fa-solid fa-id-card"></i> ID: ${student.id}`;
     document.getElementById("studentProfilePhone").innerHTML = `<i class="fa-solid fa-phone"></i> ${student.phone}`;
 
@@ -1391,8 +1855,26 @@ async function renderStudentDashboard() {
     if (statAvgEl) statAvgEl.textContent = checkedCount > 0 ? `${avgScorePercent}%` : "--";
     if (statGradeEl) statGradeEl.textContent = grade;
 
+    // Calculate attendance percentage for student badge
+    const studentAttRecords = state.attendance.filter(a => a.records && a.records[student.id]);
+    let attPct = 100;
+    if (studentAttRecords.length > 0) {
+        const presentDays = studentAttRecords.filter(a => a.records[student.id] === 'present' || a.records[student.id] === 'late').length;
+        attPct = Math.round((presentDays / studentAttRecords.length) * 100);
+    }
+    const attTag = document.getElementById("studentProfileAttendance");
+    if (attTag) attTag.innerHTML = `<i class="fa-solid fa-calendar-check"></i> উপস্থিতি: ${attPct}%`;
+
+    // Pending doubts badge
+    const myDoubts = state.doubts.filter(d => d.studentId === student.id);
+    const pendingDoubtsCount = myDoubts.filter(d => d.status === 'pending').length;
+    const studentDoubtBadge = document.getElementById("studentPendingDoubtsCount");
+    if (studentDoubtBadge) studentDoubtBadge.textContent = pendingDoubtsCount;
+
+    renderStudentBadges(student, totalSubs, checkedCount, avgScorePercent, checkedSubs);
     renderStudentActiveHw();
     renderStudentHistory();
+    updateLiveNoticeAlert();
 }
 
 function renderStudentActiveHw() {
@@ -1707,6 +2189,19 @@ function viewEvaluatedKhata(submissionId) {
     `).join('');
 
     window.currentViewedKhataImage = displayImages[0];
+    window.currentViewedKhataSub = sub;
+
+    // Evaluated Voice Note Playback
+    const voiceBox = document.getElementById("viewEvaluatedVoiceBox");
+    const voiceAudio = document.getElementById("viewEvaluatedVoiceAudio");
+    if (sub.evaluation && sub.evaluation.voiceNote) {
+        if (voiceAudio) voiceAudio.src = sub.evaluation.voiceNote;
+        if (voiceBox) voiceBox.style.display = "block";
+    } else {
+        if (voiceAudio) voiceAudio.src = "";
+        if (voiceBox) voiceBox.style.display = "none";
+    }
+
     openModal("viewEvaluatedKhataModal");
 }
 
@@ -1779,11 +2274,22 @@ function updateNotificationsUI() {
 // MODAL & HELPER UTILITIES
 // ==========================================================================
 function openModal(modalId) {
-    document.getElementById(modalId)?.classList.add("show");
+    const el = document.getElementById(modalId);
+    if (el) {
+        el.classList.add("show");
+        document.body.classList.add("modal-open");
+    }
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId)?.classList.remove("show");
+    const el = document.getElementById(modalId);
+    if (el) {
+        el.classList.remove("show");
+    }
+    // Only remove modal-open class if no other modal is currently visible
+    if (!document.querySelector(".modal-overlay.show")) {
+        document.body.classList.remove("modal-open");
+    }
 }
 
 function renderAllViews() {
@@ -2090,3 +2596,1879 @@ async function promptResetDatabase() {
         showToast("ডাটাবেস রিসেট সম্পন্ন হয়েছে", "info");
     }
 }
+
+// ==========================================================================
+// VOICE NOTE RECORDER ENGINE (FOR TEACHER KHATA FEEDBACK)
+// ==========================================================================
+let voiceMediaRecorder = null;
+let recordedAudioChunks = [];
+let recordedVoiceBase64 = null;
+let voiceRecordTimerInterval = null;
+let voiceRecordSeconds = 0;
+
+async function toggleVoiceRecording() {
+    const btn = document.getElementById("startVoiceRecordBtn");
+    const timer = document.getElementById("voiceRecordTimer");
+    const previewArea = document.getElementById("voicePreviewArea");
+    const audioPreview = document.getElementById("evalVoiceAudioPreview");
+
+    // If already recording, stop it
+    if (voiceMediaRecorder && voiceMediaRecorder.state === "recording") {
+        voiceMediaRecorder.stop();
+        if (voiceRecordTimerInterval) clearInterval(voiceRecordTimerInterval);
+        if (btn) {
+            btn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i> <span>নতুন করে রেকর্ড করুন</span>`;
+            btn.classList.remove("btn-danger");
+            btn.classList.add("btn-outline");
+        }
+        if (timer) timer.style.display = "none";
+        return;
+    }
+
+    // Start recording
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showToast("আপনার ব্রাউজারে অডিও রেকর্ডিং সাপোর্ট নেই", "warning");
+            return;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordedAudioChunks = [];
+        voiceMediaRecorder = new MediaRecorder(stream);
+
+        voiceMediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                recordedAudioChunks.push(event.data);
+            }
+        };
+
+        voiceMediaRecorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            const audioBlob = new Blob(recordedAudioChunks, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                recordedVoiceBase64 = reader.result;
+                if (audioPreview) {
+                    audioPreview.src = recordedVoiceBase64;
+                    if (previewArea) previewArea.style.display = "flex";
+                }
+                showToast("🎙️ অডিও ভয়েস নোট রেকর্ড সম্পন্ন হয়েছে", "success");
+            };
+            reader.readAsDataURL(audioBlob);
+        };
+
+        voiceMediaRecorder.start();
+        voiceRecordSeconds = 0;
+        if (timer) {
+            timer.style.display = "inline-block";
+            timer.textContent = "🔴 0:00";
+        }
+
+        voiceRecordTimerInterval = setInterval(() => {
+            voiceRecordSeconds++;
+            const mins = Math.floor(voiceRecordSeconds / 60);
+            const secs = voiceRecordSeconds % 60;
+            if (timer) {
+                timer.textContent = `🔴 ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+            if (voiceRecordSeconds >= 180) { // 3 min max
+                toggleVoiceRecording();
+            }
+        }, 1000);
+
+        if (btn) {
+            btn.innerHTML = `<i class="fa-solid fa-stop"></i> <span>রেকর্ডিং বন্ধ করুন</span>`;
+            btn.classList.remove("btn-outline");
+            btn.classList.add("btn-danger");
+        }
+        if (previewArea) previewArea.style.display = "none";
+    } catch (err) {
+        console.error("Microphone access error:", err);
+        showToast("মাইক্রোফোনের অনুমতি দেওয়া হয়নি বা কোনো মাইক্রোফোন পাওয়া যায়নি", "error");
+    }
+}
+
+function discardVoiceRecording() {
+    try {
+        if (voiceMediaRecorder && voiceMediaRecorder.state === "recording") {
+            voiceMediaRecorder.stop();
+        }
+    } catch (e) {}
+    if (voiceRecordTimerInterval) clearInterval(voiceRecordTimerInterval);
+    recordedAudioChunks = [];
+    recordedVoiceBase64 = null;
+
+    const btn = document.getElementById("startVoiceRecordBtn");
+    const timer = document.getElementById("voiceRecordTimer");
+    const previewArea = document.getElementById("voicePreviewArea");
+    const audioPreview = document.getElementById("evalVoiceAudioPreview");
+
+    if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-microphone-lines"></i> <span>ভয়েস রেকর্ড করুন</span>`;
+        btn.classList.remove("btn-danger");
+        btn.classList.add("btn-outline");
+    }
+    if (timer) timer.style.display = "none";
+    if (audioPreview) audioPreview.src = "";
+    if (previewArea) previewArea.style.display = "none";
+}
+
+// ==========================================================================
+// AI DRAFT FEEDBACK GENERATOR
+// ==========================================================================
+function generateAiKhataFeedback() {
+    const obInput = document.getElementById("evalMarksObtained");
+    const totInput = document.getElementById("evalMarksTotal");
+    const remarksText = document.getElementById("evalTeacherRemarks");
+
+    const ob = parseFloat(obInput?.value) || 0;
+    const tot = parseFloat(totInput?.value) || 20;
+    const pct = tot > 0 ? (ob / tot) * 100 : 80;
+
+    let suggestions = [];
+    if (pct >= 85) {
+        suggestions = [
+            "অসাধারণ উত্তর! প্রতিটি ধাপ নির্ভুল ও পরিচ্ছন্ন। এই সুন্দর ধারাবাহিকতা বজায় রেখো।",
+            "চমৎকার হয়েছে! হাতের লেখা ও উপস্থাপন উভয়ই বেশ প্রশংসনীয়। শুভকামনা রইল!",
+            "পারফেক্ট কাজ! সবগুলো উত্তর যথাযথ হয়েছে। আরও এগিয়ে যাও।"
+        ];
+    } else if (pct >= 70) {
+        suggestions = [
+            "খুব ভালো প্রচেষ্টা! অধিকাংশ উত্তর সঠিক হয়েছে, তবে ছোটখাটো কিছু জায়গায় আরেকটু সতর্ক থাকতে হবে।",
+            "ভালো লিখেছ। সূত্রের প্রয়োগ ঠিক ছিল, গণনার শেষ অংশটি আরেকটু সাবধানে মিলিয়ে নিও।",
+            "সুন্দর কাজ! নিয়মিত এমন অধ্যবসায় রাখলে পরবর্তী পরীক্ষায় আরও দারুণ ফলাফল সম্ভব।"
+        ];
+    } else if (pct >= 50) {
+        suggestions = [
+            "সন্তোষজনক হয়েছে। তবে মূল পয়েন্টগুলো আরেকটু গভীরভাবে রিভিশন দেওয়া প্রয়োজন।",
+            "প্রচেষ্টা ভালো ছিল, কিন্তু কিছু মৌলিক জায়গায় ভুল হয়েছে। লাল কালির মার্কিংগুলো ভালো করে দেখে নাও।",
+            "আরেকটু যত্নশীল হতে হবে। চিহ্নিত ভুলগুলো সংশোধন করে বারবার চর্চা করো।"
+        ];
+    } else {
+        suggestions = [
+            "অনেক বেশি মনোযোগ ও অনুশীলন প্রয়োজন। যে প্রশ্নগুলোতে ভুল হয়েছে সেগুলো পুনরায় নোট করে নাও।",
+            "পড়াশোনায় সময় আরও বাড়াতে হবে। মূল কনসেপ্টগুলো আবার পড়ে প্রয়োজনে ক্লাসে আলোচনা করে নিও।",
+            "হতাশ হওয়ার কিছু নেই, নিয়মিত রিভিশন ও অধ্যবসায়ের মাধ্যমে নিশ্চয়ই ভালো করতে পারবে।"
+        ];
+    }
+
+    const picked = suggestions[Math.floor(Math.random() * suggestions.length)];
+    if (remarksText) {
+        remarksText.value = picked;
+        remarksText.focus();
+        showToast("✨ AI ড্রাফট মন্তব্য যুক্ত হয়েছে", "success");
+    }
+}
+
+// ==========================================================================
+// WHATSAPP RESULT & REPORT NOTIFICATIONS
+// ==========================================================================
+function formatKhataWhatsAppMessage(sub) {
+    const ob = sub.evaluation?.obtainedMarks || 0;
+    const tot = sub.evaluation?.totalMarks || 20;
+    const grade = sub.evaluation?.grade || "A";
+    const remarks = sub.evaluation?.remarks || "খাতা মূল্যায়ন সম্পন্ন হয়েছে।";
+    const creds = getAuthorizedTeacherCredentials();
+    const teacherName = creds.name || "আফিক স্যার";
+
+    return `*EduCheck ডিজিটাল একাডেমি - খাতা মূল্যায়নের ফলাফল* 📝\n\n` +
+           `👤 *শিক্ষার্থীর নাম:* ${sub.studentName}\n` +
+           `🆔 *আইডি:* ${sub.studentId}\n` +
+           `📚 *বিষয় / পরীক্ষা:* ${sub.assignmentTitle}\n` +
+           `📊 *প্রাপ্ত নম্বর:* ${ob} / ${tot} (${grade})\n` +
+           `💬 *শিক্ষকের মূল্যায়ন:* "${remarks}"\n` +
+           `👨‍🏫 *মূল্যায়নকারী শিক্ষক:* ${teacherName}\n\n` +
+           `EduCheck ডিজিটাল পোর্টালে লগইন করে লাল কালির মূল্যায়িত খাতা ও শিক্ষকের অডিও ভয়েস নোট দেখতে পারবেন। ধন্যবাদ!`;
+}
+
+function sendWhatsAppKhataResult(subId) {
+    const sub = state.submissions.find(s => s.id === subId) || window.currentViewedKhataSub;
+    if (!sub || !sub.evaluation) {
+        showToast("খাতাটি এখনো মূল্যায়ন করা হয়নি", "warning");
+        return;
+    }
+
+    const msg = formatKhataWhatsAppMessage(sub);
+    const encoded = encodeURIComponent(msg);
+    let phone = (sub.studentPhone || "").replace(/[^0-9]/g, "");
+    if (phone.startsWith("0")) phone = "880" + phone.slice(1);
+
+    const waUrl = phone.length >= 10 ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    window.open(waUrl, "_blank");
+    showToast("WhatsApp এ ফলাফল ওপেন হচ্ছে...", "info");
+}
+
+function shareEvaluatedKhataWhatsApp() {
+    if (window.currentViewedKhataSub) {
+        sendWhatsAppKhataResult(window.currentViewedKhataSub.id);
+    } else {
+        showToast("কোনো মূল্যায়িত খাতা পাওয়া যায়নি", "warning");
+    }
+}
+
+function sendReportCardWhatsApp() {
+    const student = window.currentReportCardStudent || (state.currentUser?.role === 'student' ? state.currentUser : null);
+    if (!student) {
+        showToast("শিক্ষার্থীর তথ্য পাওয়া যায়নি", "warning");
+        return;
+    }
+
+    const studentSubs = state.submissions.filter(s => s.studentId === student.id);
+    const checkedSubs = studentSubs.filter(s => s.status === 'checked');
+    const checkedCount = checkedSubs.length;
+
+    let avgScorePercent = 0;
+    if (checkedCount > 0) {
+        const totalPct = checkedSubs.reduce((acc, s) => {
+            const ob = s.evaluation?.obtainedMarks || 0;
+            const tot = s.evaluation?.totalMarks || 20;
+            return acc + (tot > 0 ? (ob / tot) * 100 : 0);
+        }, 0);
+        avgScorePercent = Math.round(totalPct / checkedCount);
+    }
+
+    let grade = "N/A";
+    if (checkedCount > 0) {
+        if (avgScorePercent >= 80) grade = "A+ (অসাধারণ)";
+        else if (avgScorePercent >= 70) grade = "A (খুব ভালো)";
+        else if (avgScorePercent >= 60) grade = "A- (ভালো)";
+        else if (avgScorePercent >= 50) grade = "B (সন্তোষজনক)";
+        else grade = "C (উন্নতি প্রয়োজন)";
+    }
+
+    const creds = getAuthorizedTeacherCredentials();
+    const teacherName = creds.name || "আফিক স্যার";
+
+    const msg = `🎓 *EduCheck ডিজিটাল একাডেমি - শিক্ষার্থী অগ্রগতি রিপোর্ট* 📄\n\n` +
+        `👤 *শিক্ষার্থীর নাম:* ${student.name}\n` +
+        `🆔 *আইডি:* ${student.id} | *শ্রেণি:* ${student.class || 'Class 10'} (${student.subject || 'বিজ্ঞান'})\n` +
+        `-----------------------------------------\n` +
+        `📋 *মোট জমা খাতা:* ${studentSubs.length} টি\n` +
+        `✅ *মূল্যায়িত খাতা:* ${checkedCount} টি\n` +
+        `📈 *গড় প্রাপ্ত স্কোর:* ${checkedCount > 0 ? avgScorePercent + '%' : 'N/A'}\n` +
+        `🏅 *সামগ্রিক গ্রেড:* ${grade}\n` +
+        `-----------------------------------------\n` +
+        `👨‍🏫 *নির্দেশক ও মূল্যায়নকারী:* ${teacherName}\n\n` +
+        `নিয়মিত হোমওয়ার্ক ও পরীক্ষার বিস্তারিত খাতা দেখতে EduCheck অ্যাপে লগইন করুন। ধন্যবাদ!`;
+
+    const encoded = encodeURIComponent(msg);
+    let phone = (student.phone || "").replace(/[^0-9]/g, "");
+    if (phone.startsWith("0")) phone = "880" + phone.slice(1);
+
+    const waUrl = phone.length >= 10 ? `https://wa.me/${phone}?text=${encoded}` : `https://wa.me/?text=${encoded}`;
+    window.open(waUrl, "_blank");
+    showToast("হোয়াটসঅ্যাপে মার্কশিট রিপোর্ট পাঠানো হচ্ছে...", "info");
+}
+
+// ==========================================================================
+// STUDENT REPORT CARD & MARKSHEET MODAL CONTROLLER
+// ==========================================================================
+function openStudentReportCardModal(studentId) {
+    let student = null;
+    if (studentId) {
+        student = state.students.find(s => s.id === studentId);
+        if (!student) {
+            const anySub = state.submissions.find(s => s.studentId === studentId);
+            if (anySub) {
+                student = {
+                    id: anySub.studentId,
+                    name: anySub.studentName,
+                    phone: anySub.studentPhone || "--",
+                    class: anySub.studentClass || "Class 10",
+                    subject: anySub.subject || "বিজ্ঞান"
+                };
+            }
+        }
+    } else if (state.currentUser && state.currentUser.role === 'student') {
+        student = state.currentUser;
+    }
+
+    if (!student) {
+        showToast("শিক্ষার্থীর তথ্য পাওয়া যায়নি", "warning");
+        return;
+    }
+
+    window.currentReportCardStudent = student;
+
+    // Set Header & Meta
+    document.getElementById("reportStudentName").textContent = student.name;
+    document.getElementById("reportStudentId").textContent = student.id;
+    document.getElementById("reportStudentClass").textContent = `${student.class || 'Class 10'} (${student.subject || student.group || 'বিজ্ঞান'})`;
+    document.getElementById("reportStudentPhone").textContent = student.phone || "--";
+
+    const creds = getAuthorizedTeacherCredentials();
+    const stampEl = document.getElementById("reportTeacherStamp");
+    if (stampEl) {
+        stampEl.innerHTML = `${creds.name || 'আফিক স্যার'}<br><small>প্রধান শিক্ষক ও নির্দেশক</small>`;
+    }
+
+    // Filter submissions for this student
+    const studentSubs = state.submissions.filter(s => s.studentId === student.id);
+    const checkedSubs = studentSubs.filter(s => s.status === 'checked');
+    const checkedCount = checkedSubs.length;
+
+    let avgScorePercent = 0;
+    if (checkedCount > 0) {
+        const totalPct = checkedSubs.reduce((acc, s) => {
+            const ob = s.evaluation?.obtainedMarks || 0;
+            const tot = s.evaluation?.totalMarks || 20;
+            return acc + (tot > 0 ? (ob / tot) * 100 : 0);
+        }, 0);
+        avgScorePercent = Math.round(totalPct / checkedCount);
+    }
+
+    let finalGrade = "N/A";
+    if (checkedCount > 0) {
+        if (avgScorePercent >= 80) finalGrade = "A+";
+        else if (avgScorePercent >= 70) finalGrade = "A";
+        else if (avgScorePercent >= 60) finalGrade = "A-";
+        else if (avgScorePercent >= 50) finalGrade = "B";
+        else finalGrade = "C";
+    }
+
+    document.getElementById("reportTotalHw").textContent = studentSubs.length;
+    document.getElementById("reportCheckedHw").textContent = checkedCount;
+    document.getElementById("reportAvgScore").textContent = checkedCount > 0 ? `${avgScorePercent}%` : "--";
+    document.getElementById("reportFinalGrade").textContent = finalGrade;
+
+    // Render Submissions Table
+    const tbody = document.getElementById("reportKhataTableBody");
+    if (studentSubs.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" style="text-align: center; color: #64748b; padding: 1.5rem;">
+                    এখনো কোনো খাতা বা হোমওয়ার্ক জমা দেওয়া হয়নি
+                </td>
+            </tr>
+        `;
+    } else {
+        tbody.innerHTML = studentSubs.map(s => {
+            const dt = formatBanglaDateTime(s.submittedAt);
+            const isChecked = s.status === 'checked';
+            const marksText = isChecked ? `${s.evaluation.obtainedMarks} / ${s.evaluation.totalMarks}` : `<span style="color: #94a3b8;">--</span>`;
+            const gradeBadge = isChecked ? `<span class="badge badge-success" style="font-size: 0.76rem;">${s.evaluation.grade}</span>` : `<span class="badge badge-warning" style="font-size: 0.76rem;">অপেক্ষমান</span>`;
+            const remarksText = isChecked ? (s.evaluation.remarks || 'মূল্যায়ন সম্পন্ন') : 'শিক্ষকের মূল্যায়ন প্রক্রিয়াধীন';
+
+            return `
+                <tr>
+                    <td style="font-size: 0.82rem; white-space: nowrap;">${dt}</td>
+                    <td><strong>${s.assignmentTitle}</strong></td>
+                    <td>${s.subject || student.subject || 'সাধারণ'}</td>
+                    <td style="text-align: center; font-weight: bold;">${marksText}</td>
+                    <td style="text-align: center;">${gradeBadge}</td>
+                    <td style="font-size: 0.82rem; color: #475569;">${remarksText}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    openModal("studentReportCardModal");
+}
+
+// ==========================================================================
+// STUDENT BADGES & ACHIEVEMENTS SYSTEM
+// ==========================================================================
+function renderStudentBadges(student, totalSubs, checkedCount, avgScorePercent, checkedSubs) {
+    const grid = document.getElementById("studentBadgesGrid");
+    const countText = document.getElementById("studentBadgesCountText");
+    if (!grid) return;
+
+    const hasPerfectScore = checkedSubs && checkedSubs.some(s => {
+        const ob = s.evaluation?.obtainedMarks || 0;
+        const tot = s.evaluation?.totalMarks || 20;
+        return tot > 0 && ob >= tot;
+    });
+
+    const badges = [
+        {
+            id: "badge_first_hw",
+            title: "প্রথম পদক্ষেপ",
+            desc: "১ম হোমওয়ার্ক খাতা সফল জমা",
+            icon: "fa-rocket",
+            color: "#6366f1",
+            unlocked: totalSubs >= 1
+        },
+        {
+            id: "badge_streak_master",
+            title: "নিয়মিত শিক্ষার্থী",
+            desc: "ধারাবাহিক চর্চা ও ৩+ টি খাতা জমা",
+            icon: "fa-fire",
+            color: "#ef4444",
+            unlocked: totalSubs >= 3
+        },
+        {
+            id: "badge_perfect_score",
+            title: "পারফেক্ট ১০০",
+            desc: "যেকোনো মূল্যায়নে ১০০% পূর্ণ মার্কস",
+            icon: "fa-bullseye",
+            color: "#10b981",
+            unlocked: Boolean(hasPerfectScore)
+        },
+        {
+            id: "badge_star_performer",
+            title: "স্টার পারফরমার",
+            desc: "গড়ে ৮০% বা ততোধিক স্কোর (A+)",
+            icon: "fa-star",
+            color: "#f59e0b",
+            unlocked: checkedCount >= 1 && avgScorePercent >= 80
+        },
+        {
+            id: "badge_super_scholar",
+            title: "সুপার স্টুডেন্ট",
+            desc: "মোট ৫টি বা তার বেশি খাতা জমা",
+            icon: "fa-award",
+            color: "#8b5cf6",
+            unlocked: totalSubs >= 5
+        }
+    ];
+
+    const unlockedCount = badges.filter(b => b.unlocked).length;
+    if (countText) {
+        countText.textContent = `${unlockedCount}/${badges.length} অর্জিত`;
+    }
+
+    grid.innerHTML = badges.map(b => `
+        <div class="badge-achievement-card ${b.unlocked ? 'unlocked' : 'locked'}">
+            <div class="badge-card-icon" style="background: ${b.unlocked ? b.color + '15' : '#f1f5f9'}; color: ${b.unlocked ? b.color : '#94a3b8'};">
+                <i class="fa-solid ${b.icon}"></i>
+            </div>
+            <div class="badge-card-info">
+                <div class="badge-card-title">${b.title}</div>
+                <div class="badge-card-desc">${b.desc}</div>
+                <div class="badge-card-status">
+                    ${b.unlocked ? '<span style="color: #10b981;"><i class="fa-solid fa-circle-check"></i> আনলকড</span>' : '<span style="color: #94a3b8;"><i class="fa-solid fa-lock"></i> লকড</span>'}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ==========================================================================
+// TEACHER SETTINGS & PASSWORD CHANGE CONTROLLER
+// ==========================================================================
+function openTeacherSettingsModal() {
+    const creds = getAuthorizedTeacherCredentials();
+    const nameInput = document.getElementById("teacherSettingsName");
+    const emailInput = document.getElementById("teacherSettingsEmail");
+    const currentPassInput = document.getElementById("teacherSettingsCurrentPass");
+    const newPassInput = document.getElementById("teacherSettingsNewPass");
+    const confirmPassInput = document.getElementById("teacherSettingsConfirmPass");
+
+    if (nameInput) nameInput.value = creds.name || "আফিক স্যার";
+    if (emailInput) emailInput.value = creds.emails[0] || "teacher@gmail.com";
+    if (currentPassInput) currentPassInput.value = "";
+    if (newPassInput) newPassInput.value = "";
+    if (confirmPassInput) confirmPassInput.value = "";
+
+    openModal("teacherSettingsModal");
+}
+
+function handleSaveTeacherSettings(event) {
+    if (event) event.preventDefault();
+    const creds = getAuthorizedTeacherCredentials();
+    const name = (document.getElementById("teacherSettingsName")?.value || "").trim();
+    const email = (document.getElementById("teacherSettingsEmail")?.value || "").trim().toLowerCase();
+    const currentPass = document.getElementById("teacherSettingsCurrentPass")?.value || "";
+    const newPass = document.getElementById("teacherSettingsNewPass")?.value || "";
+    const confirmPass = document.getElementById("teacherSettingsConfirmPass")?.value || "";
+
+    if (!name) {
+        showToast("শিক্ষকের নাম লিখুন", "warning");
+        return;
+    }
+    if (!email) {
+        showToast("লগইন জিমেইল প্রদান করুন", "warning");
+        return;
+    }
+    if (currentPass !== creds.password) {
+        showToast("❌ বর্তমান পাসওয়ার্ড সঠিক নয়!", "error");
+        document.getElementById("teacherSettingsCurrentPass")?.focus();
+        return;
+    }
+
+    let finalPassword = creds.password;
+    if (newPass) {
+        if (newPass.length < 4) {
+            showToast("নতুন পাসওয়ার্ড কমপক্ষে ৪ অক্ষরের হতে হবে", "warning");
+            return;
+        }
+        if (newPass !== confirmPass) {
+            showToast("নতুন পাসওয়ার্ড ও কনফার্ম পাসওয়ার্ড মিলছে না!", "error");
+            return;
+        }
+        finalPassword = newPass;
+    }
+
+    const updated = {
+        name: name,
+        email: email,
+        password: finalPassword
+    };
+
+    localStorage.setItem("educheck_teacher_credentials", JSON.stringify(updated));
+
+    if (state.currentUser && state.currentUser.role === 'teacher') {
+        state.currentUser.name = `${name} (শিক্ষক)`;
+        state.currentUser.email = email;
+        const navName = document.getElementById("navUserName");
+        if (navName) navName.textContent = state.currentUser.name;
+    }
+
+    closeModal("teacherSettingsModal");
+    showToast("🎉 শিক্ষক সেটিংস ও পাসওয়ার্ড সফলভাবে আপডেট হয়েছে!", "success");
+}
+
+// ==========================================================================
+// APP SPLASH SCREEN CONTROLLER
+// ==========================================================================
+function hideSplashScreen() {
+    const splash = document.getElementById("appSplashScreen");
+    if (splash) {
+        splash.classList.add("fade-out");
+        setTimeout(() => {
+            splash.style.display = "none";
+        }, 400);
+    }
+}
+window.hideSplashScreen = hideSplashScreen;
+
+// ==========================================================================
+// USER PROFILE & SETTINGS MODAL (STUDENT & TEACHER)
+// ==========================================================================
+function openUserProfileModal() {
+    const user = state.currentUser;
+    if (!user) {
+        showToast("প্রোফাইল দেখতে প্রথমে লগইন করুন", "info");
+        return;
+    }
+
+    const modal = document.getElementById("userProfileModal");
+    if (!modal) return;
+
+    // Set Avatar & common info
+    const avatarImg = document.getElementById("userProfileModalAvatar");
+    const nameEl = document.getElementById("userProfileModalName");
+    const badgeRole = document.getElementById("userProfileModalBadgeRole");
+    const badgeId = document.getElementById("userProfileModalBadgeId");
+    const badgePhone = document.getElementById("userProfileModalBadgePhone");
+
+    if (avatarImg) avatarImg.src = user.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id || 'User'}`;
+    if (nameEl) nameEl.textContent = user.name || "ব্যবহারকারী";
+
+    const isTeacher = user.role === "teacher";
+    if (badgeRole) {
+        badgeRole.innerHTML = isTeacher
+            ? `<i class="fa-solid fa-chalkboard-user"></i> শিক্ষক (অ্যাডমিন)`
+            : `<i class="fa-solid fa-user-graduate"></i> শিক্ষার্থী (${user.class || 'Class 10'})`;
+        badgeRole.className = isTeacher ? "badge badge-teacher" : "badge badge-class";
+    }
+
+    if (badgeId) {
+        badgeId.innerHTML = `<i class="fa-solid fa-id-card"></i> ID: ${user.id || 'N/A'}`;
+    }
+
+    if (badgePhone) {
+        badgePhone.innerHTML = `<i class="fa-solid fa-phone"></i> ${user.phone || '--'}`;
+        badgePhone.style.display = user.phone ? "inline-flex" : "none";
+    }
+
+    const studentSection = document.getElementById("studentProfileEditSection");
+    const teacherSection = document.getElementById("teacherProfileEditSection");
+
+    if (isTeacher) {
+        if (studentSection) studentSection.style.display = "none";
+        if (teacherSection) teacherSection.style.display = "block";
+    } else {
+        if (teacherSection) teacherSection.style.display = "none";
+        if (studentSection) {
+            studentSection.style.display = "block";
+            const nameIn = document.getElementById("studentEditNameInput");
+            const classSel = document.getElementById("studentEditClassSelect");
+            const branchSel = document.getElementById("studentEditBranchSelect");
+            const phoneIn = document.getElementById("studentEditPhoneInput");
+
+            if (nameIn) nameIn.value = user.name || "";
+            if (classSel && user.class) classSel.value = user.class;
+            if (branchSel && (user.subject || user.group)) branchSel.value = user.subject || user.group;
+            if (phoneIn) phoneIn.value = user.phone || "";
+        }
+    }
+
+    openModal("userProfileModal");
+}
+window.openUserProfileModal = openUserProfileModal;
+
+async function handleSaveStudentProfile(event) {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    const user = state.currentUser;
+    if (!user || user.role !== 'student') return;
+
+    const nameIn = document.getElementById("studentEditNameInput");
+    const classSel = document.getElementById("studentEditClassSelect");
+    const branchSel = document.getElementById("studentEditBranchSelect");
+    const phoneIn = document.getElementById("studentEditPhoneInput");
+
+    const newName = nameIn ? nameIn.value.trim() : "";
+    const newClass = classSel ? classSel.value : user.class;
+    const newBranch = branchSel ? branchSel.value : (user.subject || user.group);
+    const rawPhone = phoneIn ? phoneIn.value.trim() : "";
+    const newPhone = normalizeDigits(rawPhone);
+
+    if (!newName) {
+        showToast("দয়া করে আপনার নাম লিখুন", "warning");
+        return;
+    }
+
+    if (!newPhone || newPhone.length < 6) {
+        showToast("সঠিক মোবাইল নম্বর দিন", "warning");
+        return;
+    }
+
+    user.name = newName;
+    user.class = newClass;
+    user.subject = newBranch;
+    user.group = newBranch;
+    user.phone = newPhone;
+
+    // Update in students state
+    const idx = state.students.findIndex(s => s.id === user.id);
+    if (idx !== -1) {
+        state.students[idx] = { ...state.students[idx], ...user };
+    } else {
+        state.students.push(user);
+    }
+
+    // Save to LocalStorage
+    localStorage.setItem("educheck_current_user", JSON.stringify(user));
+    localStorage.setItem("educheck_saved_student_phone", user.phone);
+
+    // Save to IndexedDB and sync to Firebase Cloud Firestore
+    try {
+        await window.dbStorage.set("students", user);
+    } catch (e) {
+        console.warn("Storage sync warning:", e);
+    }
+
+    // Refresh UI
+    applyAuthStateUI();
+    renderStudentDashboard();
+    closeModal("userProfileModal");
+    showToast("🎉 আপনার প্রোফাইল তথ্য সফলভাবে ক্লাউডে সংরক্ষিত হয়েছে!", "success");
+}
+window.handleSaveStudentProfile = handleSaveStudentProfile;
+
+async function cycleUserAvatar() {
+    const user = state.currentUser;
+    if (!user) return;
+
+    const seeds = ["Afiq", "Leo", "Felix", "Jasper", "Oliver", "Nova", "Cosmo", "Milo", "Max", "Sam", "Alex", "Champion", "Pro", "Star"];
+    const randomSeed = seeds[Math.floor(Math.random() * seeds.length)] + "_" + Math.floor(Math.random() * 900 + 100);
+    const newAvatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${randomSeed}`;
+
+    user.avatar = newAvatar;
+    const modalAvatar = document.getElementById("userProfileModalAvatar");
+    if (modalAvatar) modalAvatar.src = newAvatar;
+
+    const navAvatar = document.getElementById("navUserAvatar");
+    if (navAvatar) navAvatar.src = newAvatar;
+
+    const bannerAvatar = document.getElementById("studentProfileImg");
+    if (bannerAvatar) bannerAvatar.src = newAvatar;
+
+    localStorage.setItem("educheck_current_user", JSON.stringify(user));
+
+    if (user.role === 'student') {
+        const idx = state.students.findIndex(s => s.id === user.id);
+        if (idx !== -1) state.students[idx].avatar = newAvatar;
+        try {
+            await window.dbStorage.set("students", user);
+        } catch (e) {}
+    }
+
+    showToast("✨ নতুন অবতার সেট করা হয়েছে!", "info");
+}
+window.cycleUserAvatar = cycleUserAvatar;
+
+// ==========================================================================
+// 1. THEME SWITCHER CONTROLLER (DARK / LIGHT MODE)
+// ==========================================================================
+function initTheme() {
+    const savedTheme = localStorage.getItem("educheck_theme") || "light";
+    const body = document.body;
+    const themeBtn = document.getElementById("themeToggleBtn");
+
+    if (savedTheme === "dark") {
+        body.classList.add("dark-theme");
+        if (themeBtn) themeBtn.innerHTML = `<i class="fa-solid fa-sun"></i>`;
+    } else {
+        body.classList.remove("dark-theme");
+        if (themeBtn) themeBtn.innerHTML = `<i class="fa-solid fa-moon"></i>`;
+    }
+}
+
+function toggleDarkTheme() {
+    const body = document.body;
+    const themeBtn = document.getElementById("themeToggleBtn");
+    const isDark = body.classList.toggle("dark-theme");
+
+    localStorage.setItem("educheck_theme", isDark ? "dark" : "light");
+    if (themeBtn) {
+        themeBtn.innerHTML = isDark ? `<i class="fa-solid fa-sun"></i>` : `<i class="fa-solid fa-moon"></i>`;
+    }
+    showToast(isDark ? "🌙 ডার্ক থিম সক্রিয় করা হয়েছে" : "☀️ লাইট থিম সক্রিয় করা হয়েছে", "info");
+}
+
+// ==========================================================================
+// 2. LIVE EMERGENCY NOTICE ALERT BAR
+// ==========================================================================
+function updateLiveNoticeAlert() {
+    const alertBar = document.getElementById("liveNoticeAlertBar");
+    const alertText = document.getElementById("liveNoticeAlertText");
+    if (!alertBar || !alertText) return;
+
+    if (sessionStorage.getItem("educheck_dismissed_notice_alert") === "true") {
+        alertBar.style.display = "none";
+        return;
+    }
+
+    const urgentNotice = (state.notices || []).find(n => n.priority === "urgent");
+    if (urgentNotice) {
+        alertText.textContent = `${urgentNotice.title} - ${urgentNotice.body.substring(0, 70)}...`;
+        alertBar.style.display = "block";
+    } else {
+        alertBar.style.display = "none";
+    }
+}
+
+function dismissLiveNoticeAlert() {
+    const alertBar = document.getElementById("liveNoticeAlertBar");
+    if (alertBar) alertBar.style.display = "none";
+    sessionStorage.setItem("educheck_dismissed_notice_alert", "true");
+}
+
+function openLiveNoticeModal() {
+    const urgentNotice = (state.notices || []).find(n => n.priority === "urgent") || (state.notices || [])[0];
+    if (urgentNotice) {
+        openNoticeDetailModal(urgentNotice.id);
+    }
+}
+
+// ==========================================================================
+// 3. DAILY ATTENDANCE SYSTEM CONTROLLER
+// ==========================================================================
+function loadAttendanceForSelectedDate() {
+    const dateInput = document.getElementById("attendanceDatePicker");
+    if (dateInput && !dateInput.value) {
+        dateInput.value = state.selectedAttendanceDate || new Date().toISOString().split('T')[0];
+    }
+    const selectedDate = dateInput ? dateInput.value : (state.selectedAttendanceDate || new Date().toISOString().split('T')[0]);
+    state.selectedAttendanceDate = selectedDate;
+
+    let attRecord = state.attendance.find(a => a.date === selectedDate || a.id === `att_${selectedDate}`);
+    if (!attRecord) {
+        // Initialize an in-memory attendance record for this date
+        const defaultRecords = {};
+        state.students.forEach(s => {
+            defaultRecords[s.id] = "present";
+        });
+        attRecord = {
+            id: `att_${selectedDate}`,
+            date: selectedDate,
+            records: defaultRecords,
+            updatedAt: new Date().toISOString()
+        };
+    } else if (!attRecord.records) {
+        attRecord.records = {};
+    }
+
+    // Ensure all registered students have an entry
+    state.students.forEach(s => {
+        if (!attRecord.records[s.id]) {
+            attRecord.records[s.id] = "present";
+        }
+    });
+
+    renderAttendanceGrid(attRecord);
+}
+
+function renderAttendanceGrid(attRecord) {
+    const grid = document.getElementById("teacherAttendanceGrid");
+    if (!grid) return;
+
+    if (!attRecord) {
+        const selectedDate = state.selectedAttendanceDate || new Date().toISOString().split('T')[0];
+        attRecord = state.attendance.find(a => a.date === selectedDate || a.id === `att_${selectedDate}`) || {
+            id: `att_${selectedDate}`,
+            date: selectedDate,
+            records: {}
+        };
+    }
+
+    const students = state.students || [];
+    let presentCount = 0;
+    let absentCount = 0;
+    let lateCount = 0;
+
+    students.forEach(s => {
+        const st = attRecord.records ? (attRecord.records[s.id] || "present") : "present";
+        if (st === "present") presentCount++;
+        else if (st === "absent") absentCount++;
+        else if (st === "late") lateCount++;
+    });
+
+    const elTotal = document.getElementById("attStatTotal");
+    const elPres = document.getElementById("attStatPresent");
+    const elAbs = document.getElementById("attStatAbsent");
+    const elLate = document.getElementById("attStatLate");
+
+    if (elTotal) elTotal.textContent = students.length;
+    if (elPres) elPres.textContent = presentCount;
+    if (elAbs) elAbs.textContent = absentCount;
+    if (elLate) elLate.textContent = lateCount;
+
+    if (students.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-user-xmark" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>কোনো নিবন্ধিত শিক্ষার্থী পাওয়া যায়নি</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">প্রথমে শিক্ষার্থী প্যানেল থেকে শিক্ষার্থী যোগ করুন।</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = students.map(s => {
+        const status = attRecord.records ? (attRecord.records[s.id] || "present") : "present";
+        return `
+            <div class="attendance-card ${status}">
+                <div class="att-card-header">
+                    <img src="${s.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + s.name}" class="student-avatar-sm" alt="Student">
+                    <div class="att-student-meta">
+                        <h4>${s.name}</h4>
+                        <span>${s.class || 'Class 10'} • ID: ${s.id}</span>
+                    </div>
+                </div>
+                <div class="att-status-toggles">
+                    <button class="att-btn att-present ${status === 'present' ? 'active' : ''}" onclick="setStudentAttendanceStatus('${s.id}', 'present')">
+                        <i class="fa-solid fa-check"></i> উপস্থিত
+                    </button>
+                    <button class="att-btn att-absent ${status === 'absent' ? 'active' : ''}" onclick="setStudentAttendanceStatus('${s.id}', 'absent')">
+                        <i class="fa-solid fa-xmark"></i> অনুপস্থিত
+                    </button>
+                    <button class="att-btn att-late ${status === 'late' ? 'active' : ''}" onclick="setStudentAttendanceStatus('${s.id}', 'late')">
+                        <i class="fa-solid fa-clock"></i> বিলম্ব
+                    </button>
+                </div>
+                ${status === 'absent' ? `
+                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #fca5a5; display: flex; justify-content: space-between; align-items: center;">
+                        <small style="color: #ef4444; font-weight: 600;"><i class="fa-solid fa-circle-exclamation"></i> অনুপস্থিত সতর্কবার্তা</small>
+                        <button class="btn btn-outline" style="font-size: 0.75rem; padding: 4px 8px; color: #059669; border-color: #059669;" onclick="sendAbsentWhatsAppAlert('${s.id}')" title="অভিভাবককে হোয়াটসঅ্যাপে অনুপস্থিতির নোটিশ পাঠান">
+                            <i class="fa-brands fa-whatsapp"></i> সতর্কবার্তা পাঠান
+                        </button>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function setStudentAttendanceStatus(studentId, status) {
+    const selectedDate = state.selectedAttendanceDate || new Date().toISOString().split('T')[0];
+    let attRecord = state.attendance.find(a => a.date === selectedDate || a.id === `att_${selectedDate}`);
+    if (!attRecord) {
+        attRecord = {
+            id: `att_${selectedDate}`,
+            date: selectedDate,
+            records: {},
+            updatedAt: new Date().toISOString()
+        };
+        state.attendance.push(attRecord);
+    }
+    if (!attRecord.records) attRecord.records = {};
+    attRecord.records[studentId] = status;
+    attRecord.updatedAt = new Date().toISOString();
+
+    renderAttendanceGrid(attRecord);
+}
+
+function markAllStudentsPresent() {
+    const selectedDate = state.selectedAttendanceDate || new Date().toISOString().split('T')[0];
+    let attRecord = state.attendance.find(a => a.date === selectedDate || a.id === `att_${selectedDate}`);
+    if (!attRecord) {
+        attRecord = {
+            id: `att_${selectedDate}`,
+            date: selectedDate,
+            records: {},
+            updatedAt: new Date().toISOString()
+        };
+        state.attendance.push(attRecord);
+    }
+    if (!attRecord.records) attRecord.records = {};
+    state.students.forEach(s => {
+        attRecord.records[s.id] = "present";
+    });
+    attRecord.updatedAt = new Date().toISOString();
+
+    renderAttendanceGrid(attRecord);
+    showToast("সকল শিক্ষার্থীকে উপস্থিত হিসেবে মার্ক করা হয়েছে", "success");
+}
+
+async function saveDailyAttendance() {
+    const selectedDate = state.selectedAttendanceDate || new Date().toISOString().split('T')[0];
+    let attRecord = state.attendance.find(a => a.date === selectedDate || a.id === `att_${selectedDate}`);
+    if (!attRecord) {
+        attRecord = {
+            id: `att_${selectedDate}`,
+            date: selectedDate,
+            records: {},
+            updatedAt: new Date().toISOString()
+        };
+        state.students.forEach(s => {
+            attRecord.records[s.id] = "present";
+        });
+        state.attendance.push(attRecord);
+    }
+
+    try {
+        await window.dbStorage.set("attendance", attRecord);
+        showToast(`✅ ${selectedDate} তারিখের উপস্থিতি সফলভাবে সংরক্ষিত ও ক্লাউডে সিঙ্ক হয়েছে!`, "success");
+    } catch (err) {
+        showToast("উপস্থিতি সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
+    }
+}
+
+function sendAbsentWhatsAppAlert(studentId) {
+    const student = state.students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const creds = getAuthorizedTeacherCredentials();
+    const teacherName = creds.name || "আফিক স্যার";
+    const dateStr = state.selectedAttendanceDate || new Date().toISOString().split('T')[0];
+
+    const message = 
+        `📢 *অনুপস্থিতি নোটিফিকেশন - একাডেমিয়া*\n\n` +
+        `সম্মানিত অভিভাবক,\n` +
+        `আপনার সন্তান *${student.name}* (শ্রেণি: ${student.class || 'Class 10'}, আইডি: ${student.id}) আজ *${dateStr}* ক্লাসে অনুপস্থিত রয়েছে।\n\n` +
+        `অনুপস্থিতির কারণ সম্পর্কে অবগত করতে অথবা বিশেষ প্রয়োজনে যোগাযোগ করার জন্য অনুরোধ করা হলো।\n\n` +
+        `👨‍🏫 *শিক্ষক:* ${teacherName}\n` +
+        `📞 যোগাযোগ: ${creds.emails[0] || 'শিক্ষক প্যানেল'}`;
+
+    const phoneDigits = (student.phone || "").replace(/\D/g, "");
+    let cleanPhone = phoneDigits;
+    if (cleanPhone.startsWith("0")) {
+        cleanPhone = "880" + cleanPhone.substring(1);
+    } else if (!cleanPhone.startsWith("880") && cleanPhone.length === 10) {
+        cleanPhone = "880" + cleanPhone;
+    }
+
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+}
+
+// ==========================================================================
+// 4. STUDENT DOUBTS CORNER & TEACHER RESOLUTION
+// ==========================================================================
+function openNewDoubtModal() {
+    const form = document.getElementById("newDoubtForm");
+    if (form) form.reset();
+    const previewWrap = document.getElementById("newDoubtPreviewContainer");
+    if (previewWrap) previewWrap.style.display = "none";
+
+    const fileInput = document.getElementById("newDoubtFile");
+    if (fileInput) {
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (re) => {
+                    const img = document.getElementById("newDoubtPreviewImg");
+                    if (img) img.src = re.target.result;
+                    if (previewWrap) previewWrap.style.display = "block";
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+    }
+
+    openModal("newDoubtModal");
+}
+
+async function handleCreateDoubt(event) {
+    if (event) event.preventDefault();
+    const student = state.currentUser;
+    if (!student || student.role !== 'student') {
+        showToast("কেবলমাত্র শিক্ষার্থীরা প্রশ্ন বা ডাউট পাঠাতে পারে", "warning");
+        return;
+    }
+
+    const subject = document.getElementById("newDoubtSubject")?.value || "গণিত";
+    const title = (document.getElementById("newDoubtTitle")?.value || "").trim();
+    const desc = (document.getElementById("newDoubtDesc")?.value || "").trim();
+    const fileInput = document.getElementById("newDoubtFile");
+
+    if (!title || !desc) {
+        showToast("প্রশ্ন বা সমস্যার শিরোনাম ও বিবরণ লিখুন", "warning");
+        return;
+    }
+
+    let imageBase64 = null;
+    if (fileInput && fileInput.files && fileInput.files[0]) {
+        try {
+            imageBase64 = await readFileAsDataURL(fileInput.files[0]);
+        } catch (e) {
+            console.warn("Doubt image conversion notice:", e);
+        }
+    }
+
+    const doubt = {
+        id: "doubt_" + Date.now(),
+        studentId: student.id,
+        studentName: student.name,
+        studentClass: student.class || "Class 10",
+        studentPhone: student.phone || "",
+        subject: subject,
+        title: title,
+        desc: desc,
+        image: imageBase64,
+        status: "pending",
+        solution: null,
+        createdAt: new Date().toISOString()
+    };
+
+    try {
+        await window.dbStorage.set("doubts", doubt);
+        state.doubts.unshift(doubt);
+        closeModal("newDoubtModal");
+        renderStudentDoubts();
+        showToast("🎉 আপনার প্রশ্নটি শিক্ষকের কাছে সফলভাবে পাঠানো হয়েছে!", "success");
+    } catch (err) {
+        showToast("প্রশ্ন পাঠাতে সমস্যা হয়েছে: " + err.message, "error");
+    }
+}
+
+function renderStudentDoubts() {
+    const grid = document.getElementById("studentDoubtsGrid");
+    if (!grid) return;
+
+    const student = state.currentUser;
+    if (!student) return;
+
+    const myDoubts = (state.doubts || []).filter(d => d.studentId === student.id);
+    const pendingCount = myDoubts.filter(d => d.status === 'pending').length;
+    const badge = document.getElementById("studentPendingDoubtsCount");
+    if (badge) badge.textContent = pendingCount;
+
+    if (myDoubts.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-circle-question" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>আপনার কোনো প্রশ্ন বা ডাউট নেই</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">পড়াশোনার যেকোনো বিষয়ে না বুঝলে শিক্ষকের কাছে সরাসরি প্রশ্ন পাঠান।</p>
+                <button class="btn btn-primary" onclick="openNewDoubtModal()">
+                    <i class="fa-solid fa-plus"></i> প্রথম প্রশ্ন করুন
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = myDoubts.map(d => {
+        const isResolved = d.status === 'resolved';
+        return `
+            <div class="doubt-card ${isResolved ? 'resolved' : 'pending'}">
+                <div class="doubt-card-header">
+                    <span class="doubt-subject-badge">${d.subject || 'সাধারণ'}</span>
+                    <span class="doubt-status-pill ${isResolved ? 'resolved' : 'pending'}">
+                        ${isResolved ? '<i class="fa-solid fa-circle-check"></i> সমাধান সম্পন্ন' : '<i class="fa-solid fa-clock"></i> উত্তরের অপেক্ষায়'}
+                    </span>
+                </div>
+                <h4 class="doubt-title">${d.title}</h4>
+                <p class="doubt-desc">${d.desc}</p>
+                ${d.image ? `
+                    <div class="doubt-img-wrap" onclick="window.open('${d.image}', '_blank')">
+                        <img src="${d.image}" alt="Doubt Photo">
+                    </div>
+                ` : ''}
+                <div class="doubt-date"><i class="fa-regular fa-calendar"></i> ${formatBanglaDateTime(d.createdAt)}</div>
+                
+                ${isResolved && d.solution ? `
+                    <div class="doubt-solution-box">
+                        <div class="sol-header">
+                            <strong><i class="fa-solid fa-chalkboard-user"></i> ${d.solution.teacherName || 'আফিক স্যার'} এর সমাধান:</strong>
+                            <small>${formatBanglaDateTime(d.solution.resolvedAt)}</small>
+                        </div>
+                        <div class="sol-text">${d.solution.text}</div>
+                        ${d.solution.audioUrl ? `
+                            <div class="sol-audio-wrap">
+                                <label><i class="fa-solid fa-microphone"></i> অডিও গাইডলাইন শুনুন:</label>
+                                <audio controls src="${d.solution.audioUrl}" style="width: 100%; height: 36px; margin-top: 4px;"></audio>
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function renderTeacherDoubts() {
+    const grid = document.getElementById("teacherDoubtsGrid");
+    if (!grid) return;
+
+    const searchTerm = (document.getElementById("teacherDoubtSearch")?.value || "").toLowerCase();
+    const statusFilter = document.getElementById("teacherDoubtStatusFilter")?.value || "all";
+
+    let doubts = state.doubts || [];
+
+    if (statusFilter !== "all") {
+        doubts = doubts.filter(d => d.status === statusFilter);
+    }
+    if (searchTerm) {
+        doubts = doubts.filter(d => 
+            (d.title && d.title.toLowerCase().includes(searchTerm)) ||
+            (d.desc && d.desc.toLowerCase().includes(searchTerm)) ||
+            (d.studentName && d.studentName.toLowerCase().includes(searchTerm)) ||
+            (d.subject && d.subject.toLowerCase().includes(searchTerm))
+        );
+    }
+
+    const pendingDoubts = state.doubts.filter(d => d.status === 'pending').length;
+    const badge = document.getElementById("teacherPendingDoubtsCount");
+    if (badge) badge.textContent = pendingDoubts;
+
+    if (doubts.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-circle-check" style="font-size: 2.5rem; color: #10b981; margin-bottom: 10px;"></i>
+                <h4>কোনো অপেক্ষমান ডাউট বা প্রশ্ন নেই</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">শিক্ষার্থীরা কোনো নতুন প্রশ্ন পাঠালে তা এখানে সরাসরি চলে আসবে।</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = doubts.map(d => {
+        const isResolved = d.status === 'resolved';
+        return `
+            <div class="doubt-card ${isResolved ? 'resolved' : 'pending'}">
+                <div class="doubt-card-header">
+                    <span class="doubt-subject-badge">${d.subject || 'সাধারণ'}</span>
+                    <span class="doubt-status-pill ${isResolved ? 'resolved' : 'pending'}">
+                        ${isResolved ? '<i class="fa-solid fa-circle-check"></i> সমাধান হয়েছে' : '<i class="fa-solid fa-clock"></i> পেন্ডিং'}
+                    </span>
+                </div>
+                <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 6px;">
+                    <i class="fa-solid fa-user-graduate"></i> <b>${d.studentName}</b> (${d.studentClass || 'Class 10'}) • <i class="fa-solid fa-phone"></i> ${d.studentPhone}
+                </div>
+                <h4 class="doubt-title">${d.title}</h4>
+                <p class="doubt-desc">${d.desc}</p>
+                ${d.image ? `
+                    <div class="doubt-img-wrap" onclick="window.open('${d.image}', '_blank')">
+                        <img src="${d.image}" alt="Doubt Photo">
+                    </div>
+                ` : ''}
+                
+                ${isResolved && d.solution ? `
+                    <div class="doubt-solution-box" style="margin-top: 10px;">
+                        <div class="sol-header">
+                            <strong><i class="fa-solid fa-check-double"></i> দেওয়া সমাধান:</strong>
+                        </div>
+                        <div class="sol-text">${d.solution.text}</div>
+                    </div>
+                ` : ''}
+
+                <div style="margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px;">
+                    <button class="btn ${isResolved ? 'btn-outline' : 'btn-primary'}" style="font-size: 0.82rem; padding: 6px 12px;" onclick="openResolveDoubtModal('${d.id}')">
+                        <i class="fa-solid ${isResolved ? 'fa-pen-to-square' : 'fa-reply'}"></i> ${isResolved ? 'সমাধান এডিট করুন' : 'সমাধান দিন'}
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openResolveDoubtModal(doubtId) {
+    const doubt = (state.doubts || []).find(d => d.id === doubtId);
+    if (!doubt) return;
+
+    state.currentDoubtToResolve = doubt;
+    state.currentDoubtAudioBlob = doubt.solution ? doubt.solution.audioUrl : null;
+
+    const meta = document.getElementById("resolveDoubtStudentMeta");
+    const title = document.getElementById("resolveDoubtTitle");
+    const desc = document.getElementById("resolveDoubtDesc");
+    const attachWrap = document.getElementById("resolveDoubtAttachmentWrap");
+    const attachImg = document.getElementById("resolveDoubtAttachment");
+    const solutionText = document.getElementById("resolveDoubtSolutionText");
+    const audioPlayer = document.getElementById("doubtVoicePlayer");
+    const statusText = document.getElementById("doubtVoiceStatusText");
+
+    if (meta) meta.textContent = `${doubt.studentName} (${doubt.studentClass || 'Class 10'}) • বিষয়: ${doubt.subject}`;
+    if (title) title.textContent = doubt.title;
+    if (desc) desc.textContent = doubt.desc;
+
+    if (doubt.image) {
+        if (attachImg) attachImg.src = doubt.image;
+        if (attachWrap) attachWrap.style.display = "block";
+    } else {
+        if (attachWrap) attachWrap.style.display = "none";
+    }
+
+    if (solutionText) solutionText.value = doubt.solution ? doubt.solution.text : "";
+    if (audioPlayer) {
+        if (doubt.solution && doubt.solution.audioUrl) {
+            audioPlayer.src = doubt.solution.audioUrl;
+            audioPlayer.style.display = "block";
+            if (statusText) statusText.textContent = "সংরক্ষিত অডিও লোড হয়েছে";
+        } else {
+            audioPlayer.src = "";
+            audioPlayer.style.display = "none";
+            if (statusText) statusText.textContent = "কোনো অডিও নেই";
+        }
+    }
+
+    openModal("resolveDoubtModal");
+}
+
+async function toggleDoubtVoiceRecording() {
+    const btn = document.getElementById("btnRecordDoubtVoice");
+    const textSpan = document.getElementById("recordDoubtVoiceText");
+    const statusSpan = document.getElementById("doubtVoiceStatusText");
+    const audioPlayer = document.getElementById("doubtVoicePlayer");
+
+    if (state.doubtMediaRecorder && state.doubtMediaRecorder.state === "recording") {
+        state.doubtMediaRecorder.stop();
+        if (textSpan) textSpan.textContent = "পুনরায় রেকর্ড করুন";
+        if (btn) btn.classList.remove("recording-active");
+        if (statusSpan) statusSpan.textContent = "✅ রেকর্ডিং সম্পন্ন!";
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        state.doubtMediaRecorder = new MediaRecorder(stream);
+        state.doubtAudioChunks = [];
+
+        state.doubtMediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) state.doubtAudioChunks.push(e.data);
+        };
+
+        state.doubtMediaRecorder.onstop = () => {
+            const blob = new Blob(state.doubtAudioChunks, { type: "audio/webm" });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                state.currentDoubtAudioBlob = reader.result;
+                if (audioPlayer) {
+                    audioPlayer.src = reader.result;
+                    audioPlayer.style.display = "block";
+                }
+            };
+            reader.readAsDataURL(blob);
+            stream.getTracks().forEach(t => t.stop());
+        };
+
+        state.doubtMediaRecorder.start();
+        if (textSpan) textSpan.textContent = "রেকর্ডিং থামান";
+        if (btn) btn.classList.add("recording-active");
+        if (statusSpan) statusSpan.textContent = "🔴 রেকর্ডিং হচ্ছে...";
+    } catch (err) {
+        showToast("মাইক্রোফোন চালু করা যায়নি: " + err.message, "error");
+    }
+}
+
+async function handleSaveDoubtSolution() {
+    const doubt = state.currentDoubtToResolve;
+    if (!doubt) return;
+
+    const solText = (document.getElementById("resolveDoubtSolutionText")?.value || "").trim();
+    if (!solText && !state.currentDoubtAudioBlob) {
+        showToast("অনুগ্রহ করে সমাধানের ব্যাখ্যা বা ভয়েস নোট প্রদান করুন", "warning");
+        return;
+    }
+
+    const creds = getAuthorizedTeacherCredentials();
+    const teacherName = creds.name || "আফিক স্যার";
+
+    doubt.status = "resolved";
+    doubt.solution = {
+        text: solText || "ভয়েস নোট ও সমাধান নিচে সংযুক্ত করা হয়েছে।",
+        audioUrl: state.currentDoubtAudioBlob || null,
+        resolvedAt: new Date().toISOString(),
+        teacherName: teacherName
+    };
+
+    try {
+        await window.dbStorage.set("doubts", doubt);
+        closeModal("resolveDoubtModal");
+        renderTeacherDoubts();
+        showToast("🎉 সমাধান সফলভাবে শিক্ষার্থীর পোর্টালে পাঠানো হয়েছে!", "success");
+    } catch (err) {
+        showToast("সমাধান সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
+    }
+}
+
+// ==========================================================================
+// 5. STUDY MATERIALS & LECTURE NOTES BANK CONTROLLER
+// ==========================================================================
+function openAddStudyMaterialModal() {
+    const form = document.getElementById("addStudyMaterialForm");
+    if (form) form.reset();
+    toggleMaterialInputType("file");
+    openModal("addStudyMaterialModal");
+}
+
+function toggleMaterialInputType(type) {
+    const fileGroup = document.getElementById("materialFileInputGroup");
+    const linkGroup = document.getElementById("materialLinkInputGroup");
+    if (type === "link") {
+        if (fileGroup) fileGroup.style.display = "none";
+        if (linkGroup) linkGroup.style.display = "block";
+    } else {
+        if (fileGroup) fileGroup.style.display = "block";
+        if (linkGroup) linkGroup.style.display = "none";
+    }
+}
+
+async function handleCreateStudyMaterial(event) {
+    if (event) event.preventDefault();
+
+    const title = (document.getElementById("newMaterialTitle")?.value || "").trim();
+    const classLevel = document.getElementById("newMaterialClass")?.value || "Class 10";
+    const subject = (document.getElementById("newMaterialSubject")?.value || "").trim();
+    const desc = (document.getElementById("newMaterialDesc")?.value || "").trim();
+    const typeRadios = document.getElementsByName("materialFileType");
+    let type = "file";
+    typeRadios.forEach(r => { if (r.checked) type = r.value; });
+
+    if (!title || !subject) {
+        showToast("শিটের শিরোনাম ও বিষয় লিখুন", "warning");
+        return;
+    }
+
+    let fileData = null;
+    let fileName = null;
+    let linkUrl = null;
+
+    if (type === "file") {
+        const fileInput = document.getElementById("newMaterialFile");
+        if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+            showToast("অনুগ্রহ করে ফাইল সংযুক্ত করুন (বা লিংক রেডিও নির্বাচন করুন)", "warning");
+            return;
+        }
+        const file = fileInput.files[0];
+        fileName = file.name;
+        try {
+            fileData = await readFileAsDataURL(file);
+        } catch (e) {
+            showToast("ফাইল লোড করতে ব্যর্থ হয়েছে", "error");
+            return;
+        }
+    } else {
+        linkUrl = (document.getElementById("newMaterialLink")?.value || "").trim();
+        if (!linkUrl) {
+            showToast("গুগল ড্রাইভ বা ওয়েব লিংক লিখুন", "warning");
+            return;
+        }
+    }
+
+    const material = {
+        id: "mat_" + Date.now(),
+        title: title,
+        classLevel: classLevel,
+        subject: subject,
+        desc: desc,
+        type: type,
+        fileData: fileData,
+        fileName: fileName,
+        linkUrl: linkUrl,
+        createdAt: new Date().toISOString(),
+        author: "আফিক স্যার"
+    };
+
+    try {
+        await window.dbStorage.set("study_materials", material);
+        state.studyMaterials.unshift(material);
+        closeModal("addStudyMaterialModal");
+        renderTeacherStudyMaterials();
+        showToast("🎉 স্টাডি শিট সফলভাবে যোগ হয়েছে!", "success");
+    } catch (err) {
+        showToast("শিট সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
+    }
+}
+
+async function deleteStudyMaterial(matId) {
+    if (!confirm("আপনি কি নিশ্চিতভাবে এই স্টাডি শিটটি মুছে ফেলতে চান?")) return;
+    try {
+        await window.dbStorage.delete("study_materials", matId);
+        state.studyMaterials = state.studyMaterials.filter(m => m.id !== matId);
+        renderTeacherStudyMaterials();
+        showToast("স্টাডি শিট মুছে ফেলা হয়েছে", "info");
+    } catch (e) {
+        showToast("মুছতে সমস্যা হয়েছে: " + e.message, "error");
+    }
+}
+
+function renderTeacherStudyMaterials() {
+    const grid = document.getElementById("teacherMaterialsGrid");
+    if (!grid) return;
+
+    const materials = state.studyMaterials || [];
+    if (materials.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-book-bookmark" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>কোনো স্টাডি শিট আপলোড করা হয়নি</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">শিক্ষার্থীদের জন্য হ্যান্ডনোট, শিট ও গাইড আপলোড করুন।</p>
+                <button class="btn btn-primary" onclick="openAddStudyMaterialModal()">
+                    <i class="fa-solid fa-plus"></i> প্রথম শিট যোগ করুন
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = materials.map(m => `
+        <div class="material-card">
+            <div class="material-type-icon ${m.type === 'file' ? 'pdf' : 'link'}">
+                <i class="fa-solid ${m.type === 'file' ? 'fa-file-pdf' : 'fa-link'}"></i>
+            </div>
+            <div class="material-content">
+                <div class="material-meta">
+                    <span class="badge badge-class">${m.classLevel || 'সকল শ্রেণি'}</span>
+                    <span class="badge badge-subject">${m.subject}</span>
+                </div>
+                <h4 class="material-title">${m.title}</h4>
+                <p class="material-desc">${m.desc || 'কোনো বিবরণ নেই'}</p>
+                <div class="material-footer">
+                    <small class="text-muted"><i class="fa-regular fa-calendar"></i> ${formatBanglaDateTime(m.createdAt)}</small>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-outline" style="font-size: 0.78rem; padding: 4px 8px;" onclick="${m.type === 'file' ? `window.open('${m.fileData}', '_blank')` : `window.open('${m.linkUrl}', '_blank')`}">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i> খুলুন
+                        </button>
+                        <button class="btn btn-outline" style="font-size: 0.78rem; padding: 4px 8px; color: #ef4444; border-color: #fca5a5;" onclick="deleteStudyMaterial('${m.id}')" title="মুছে ফেলুন">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderStudentStudyMaterials() {
+    const grid = document.getElementById("studentMaterialsGrid");
+    if (!grid) return;
+
+    const student = state.currentUser;
+    const studentClass = student ? (student.class || "Class 10") : "Class 10";
+    const materials = (state.studyMaterials || []).filter(m => m.classLevel === "All" || m.classLevel === studentClass || !m.classLevel);
+
+    if (materials.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-book-bookmark" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>আপনার শ্রেণির জন্য এখনো কোনো লেকচার শিট নেই</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">শিক্ষক নোট আপলোড করলে আপনি এখান থেকে সরাসরি দেখতে ও ডাউনলোড করতে পারবেন।</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = materials.map(m => `
+        <div class="material-card">
+            <div class="material-type-icon ${m.type === 'file' ? 'pdf' : 'link'}">
+                <i class="fa-solid ${m.type === 'file' ? 'fa-file-pdf' : 'fa-link'}"></i>
+            </div>
+            <div class="material-content">
+                <div class="material-meta">
+                    <span class="badge badge-class">${m.classLevel || 'সকল শ্রেণি'}</span>
+                    <span class="badge badge-subject">${m.subject}</span>
+                </div>
+                <h4 class="material-title">${m.title}</h4>
+                <p class="material-desc">${m.desc || 'কোনো বিবরণ নেই'}</p>
+                <div class="material-footer">
+                    <small class="text-muted"><i class="fa-regular fa-calendar"></i> ${formatBanglaDateTime(m.createdAt)}</small>
+                    <button class="btn btn-primary" style="font-size: 0.82rem; padding: 6px 12px;" onclick="${m.type === 'file' ? `window.open('${m.fileData}', '_blank')` : `window.open('${m.linkUrl}', '_blank')`}">
+                        <i class="fa-solid fa-cloud-arrow-down"></i> শিট দেখুন / ডাউনলোড
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ==========================================================================
+// 6. DIGITAL NOTICE BOARD & BROADCAST CONTROLLER
+// ==========================================================================
+function openCreateNoticeModal() {
+    const form = document.getElementById("createNoticeForm");
+    if (form) form.reset();
+    openModal("createNoticeModal");
+}
+
+async function handleCreateNotice(event) {
+    if (event) event.preventDefault();
+
+    const title = (document.getElementById("newNoticeTitle")?.value || "").trim();
+    const category = document.getElementById("newNoticeCategory")?.value || "general";
+    const priority = document.getElementById("newNoticePriority")?.value || "normal";
+    const body = (document.getElementById("newNoticeBody")?.value || "").trim();
+
+    if (!title || !body) {
+        showToast("নোটিশের শিরোনাম ও বিস্তারিত বিষয় লিখুন", "warning");
+        return;
+    }
+
+    const creds = getAuthorizedTeacherCredentials();
+    const teacherName = creds.name || "আফিক স্যার";
+
+    const notice = {
+        id: "notice_" + Date.now(),
+        title: title,
+        category: category,
+        priority: priority,
+        body: body,
+        createdAt: new Date().toISOString(),
+        author: teacherName
+    };
+
+    try {
+        await window.dbStorage.set("notices", notice);
+        state.notices.unshift(notice);
+        closeModal("createNoticeModal");
+        renderTeacherNotices();
+        updateLiveNoticeAlert();
+        showToast("🎉 নোটিশ সফলভাবে প্রকাশিত হয়েছে!", "success");
+    } catch (err) {
+        showToast("নোটিশ প্রকাশ করতে সমস্যা হয়েছে: " + err.message, "error");
+    }
+}
+
+async function deleteNotice(noticeId) {
+    if (!confirm("আপনি কি নিশ্চিতভাবে এই নোটিশটি মুছে ফেলতে চান?")) return;
+    try {
+        await window.dbStorage.delete("notices", noticeId);
+        state.notices = state.notices.filter(n => n.id !== noticeId);
+        renderTeacherNotices();
+        updateLiveNoticeAlert();
+        showToast("নোটিশ মুছে ফেলা হয়েছে", "info");
+    } catch (e) {
+        showToast("মুছতে সমস্যা হয়েছে: " + e.message, "error");
+    }
+}
+
+function renderTeacherNotices() {
+    const list = document.getElementById("teacherNoticesList");
+    if (!list) return;
+
+    const notices = state.notices || [];
+    if (notices.length === 0) {
+        list.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-bullhorn" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>কোনো প্রকাশিত নোটিশ নেই</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">শিক্ষার্থী ও অভিভাবকদের প্রয়োজনীয় তথ্য জানাতে নোটিশ প্রকাশ করুন।</p>
+                <button class="btn btn-primary" onclick="openCreateNoticeModal()">
+                    <i class="fa-solid fa-plus"></i> প্রথম নোটিশ প্রকাশ করুন
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = notices.map(n => {
+        const isUrgent = n.priority === 'urgent';
+        return `
+            <div class="notice-card ${isUrgent ? 'urgent' : ''}">
+                <div class="notice-header">
+                    <div>
+                        <span class="badge ${isUrgent ? 'badge-urgent' : 'badge-general'}">
+                            <i class="fa-solid ${isUrgent ? 'fa-triangle-exclamation' : 'fa-bullhorn'}"></i> ${isUrgent ? 'জরুরি নোটিশ' : (n.category || 'সাধারণ')}
+                        </span>
+                    </div>
+                    <small class="text-muted"><i class="fa-regular fa-clock"></i> ${formatBanglaDateTime(n.createdAt)}</small>
+                </div>
+                <h4 class="notice-title">${n.title}</h4>
+                <p class="notice-body-snippet">${n.body}</p>
+                <div class="notice-footer">
+                    <button class="btn btn-outline" style="font-size: 0.8rem; padding: 4px 10px;" onclick="openNoticeDetailModal('${n.id}')">
+                        <i class="fa-solid fa-eye"></i> বিস্তারিত
+                    </button>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-success" style="font-size: 0.8rem; padding: 4px 10px;" onclick="sendNoticeWhatsAppBroadcast('${n.id}')">
+                            <i class="fa-brands fa-whatsapp"></i> ব্রডকাস্ট
+                        </button>
+                        <button class="btn btn-outline" style="font-size: 0.8rem; padding: 4px 8px; color: #ef4444; border-color: #fca5a5;" onclick="deleteNotice('${n.id}')" title="মুছে ফেলুন">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderStudentNotices() {
+    const list = document.getElementById("studentNoticesList");
+    if (!list) return;
+
+    const notices = state.notices || [];
+    if (notices.length === 0) {
+        list.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-bullhorn" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>এখনো কোনো নতুন নোটিশ নেই</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">একাডেমির সকল আপডেট ও জরুরি বার্তা এখানে দেখতে পাবেন।</p>
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = notices.map(n => {
+        const isUrgent = n.priority === 'urgent';
+        return `
+            <div class="notice-card ${isUrgent ? 'urgent' : ''}">
+                <div class="notice-header">
+                    <div>
+                        <span class="badge ${isUrgent ? 'badge-urgent' : 'badge-general'}">
+                            <i class="fa-solid ${isUrgent ? 'fa-triangle-exclamation' : 'fa-bullhorn'}"></i> ${isUrgent ? 'জরুরি নোটিশ' : (n.category || 'সাধারণ')}
+                        </span>
+                    </div>
+                    <small class="text-muted"><i class="fa-regular fa-clock"></i> ${formatBanglaDateTime(n.createdAt)}</small>
+                </div>
+                <h4 class="notice-title">${n.title}</h4>
+                <p class="notice-body-snippet">${n.body}</p>
+                <div class="notice-footer">
+                    <button class="btn btn-outline" style="font-size: 0.82rem; padding: 6px 12px;" onclick="openNoticeDetailModal('${n.id}')">
+                        <i class="fa-solid fa-file-lines"></i> সম্পূর্ণ নোটিশ পড়ুন
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openNoticeDetailModal(noticeId) {
+    const notice = (state.notices || []).find(n => n.id === noticeId);
+    if (!notice) return;
+
+    state.currentViewingNotice = notice;
+
+    const titleEl = document.getElementById("viewNoticeTitle");
+    const dateEl = document.getElementById("viewNoticeDate");
+    const badgeWrap = document.getElementById("viewNoticeBadgeWrap");
+    const bodyEl = document.getElementById("viewNoticeBody");
+
+    if (titleEl) titleEl.textContent = notice.title;
+    if (dateEl) dateEl.textContent = `প্রকাশিত: ${formatBanglaDateTime(notice.createdAt)} • নির্দেশক: ${notice.author || 'আফিক স্যার'}`;
+    if (badgeWrap) {
+        badgeWrap.innerHTML = `
+            <span class="badge ${notice.priority === 'urgent' ? 'badge-urgent' : 'badge-general'}">
+                <i class="fa-solid ${notice.priority === 'urgent' ? 'fa-triangle-exclamation' : 'fa-bullhorn'}"></i> ${notice.priority === 'urgent' ? 'জরুরি নোটিশ' : (notice.category || 'সাধারণ')}
+            </span>
+        `;
+    }
+    if (bodyEl) bodyEl.textContent = notice.body;
+
+    openModal("viewNoticeModal");
+}
+
+function sendNoticeWhatsAppBroadcast(noticeId) {
+    const notice = noticeId ? (state.notices || []).find(n => n.id === noticeId) : state.currentViewingNotice;
+    if (!notice) return;
+
+    const creds = getAuthorizedTeacherCredentials();
+    const teacherName = creds.name || "আফিক স্যার";
+
+    const message = 
+        `📢 *একাডেমিয়া - জরুরি নোটিশ*\n\n` +
+        `📌 *বিষয়:* ${notice.title}\n` +
+        `📅 *তারিখ:* ${formatBanglaDateTime(notice.createdAt)}\n\n` +
+        `${notice.body}\n\n` +
+        `👨‍🏫 *নির্দেশনায়:* ${teacherName}`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+}
+
+// ==========================================================================
+// 7. STUDENT PERFORMANCE ANALYTICS SVG CHART
+// ==========================================================================
+function renderStudentPerformanceChart(student, checkedSubs) {
+    const container = document.getElementById("studentPerformanceChartSvgContainer");
+    if (!container) return;
+
+    if (!student) student = state.currentUser;
+    if (!checkedSubs) {
+        checkedSubs = (state.submissions || []).filter(s => s.studentId === student?.id && s.status === 'checked');
+    }
+
+    // Sort chronologically (oldest to newest)
+    const sortedSubs = [...checkedSubs].sort((a, b) => new Date(a.submittedAt || 0) - new Date(b.submittedAt || 0));
+
+    const totalEvaluated = sortedSubs.length;
+    let avgScorePct = 0;
+    let highestScorePct = 0;
+    let trendDiff = 0;
+
+    if (totalEvaluated > 0) {
+        const scores = sortedSubs.map(s => {
+            const ob = s.evaluation?.obtainedMarks || 0;
+            const tot = s.evaluation?.totalMarks || 20;
+            return tot > 0 ? Math.round((ob / tot) * 100) : 0;
+        });
+
+        const totalSum = scores.reduce((a, b) => a + b, 0);
+        avgScorePct = Math.round(totalSum / totalEvaluated);
+        highestScorePct = Math.max(...scores);
+
+        if (totalEvaluated >= 2) {
+            trendDiff = scores[scores.length - 1] - scores[0];
+        }
+    }
+
+    const statEvalEl = document.getElementById("chartStatTotalEvaluated");
+    const statAvgEl = document.getElementById("chartStatAvgScore");
+    const statHighEl = document.getElementById("chartStatHighestScore");
+    const statTrendEl = document.getElementById("chartStatTrend");
+
+    if (statEvalEl) statEvalEl.textContent = totalEvaluated;
+    if (statAvgEl) statAvgEl.textContent = totalEvaluated > 0 ? `${avgScorePct}%` : "--";
+    if (statHighEl) statHighEl.textContent = totalEvaluated > 0 ? `${highestScorePct}%` : "--";
+    if (statTrendEl) {
+        statTrendEl.textContent = trendDiff >= 0 ? `+${trendDiff}%` : `${trendDiff}%`;
+        statTrendEl.style.color = trendDiff >= 0 ? "#10b981" : "#ef4444";
+    }
+
+    if (totalEvaluated === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-chart-line" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>এখনো কোনো মূল্যায়িত খাতা পাওয়া যায়নি</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">শিক্ষক আপনার খাতা মূল্যায়ন করলে এখানে অগ্রগতি ও পারফরম্যান্স গ্রাফ প্রদর্শিত হবে।</p>
+                <button class="btn btn-primary" onclick="openSubmitHomeworkModal()">
+                    <i class="fa-solid fa-camera"></i> খাতা জমা দিন
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    // Chart Dimensions
+    const width = 600;
+    const height = 240;
+    const paddingLeft = 45;
+    const paddingRight = 30;
+    const paddingTop = 25;
+    const paddingBottom = 40;
+
+    const chartW = width - paddingLeft - paddingRight;
+    const chartH = height - paddingTop - paddingBottom;
+
+    // Grid score levels (0%, 25%, 50%, 75%, 100%)
+    const gridLevels = [0, 25, 50, 75, 100];
+    const gridLinesSvg = gridLevels.map(lvl => {
+        const y = paddingTop + chartH - (lvl / 100) * chartH;
+        return `
+            <line x1="${paddingLeft}" y1="${y}" x2="${width - paddingRight}" y2="${y}" stroke="var(--border)" stroke-dasharray="3,3" stroke-width="1"/>
+            <text x="${paddingLeft - 8}" y="${y + 4}" fill="var(--text-muted)" font-size="10" text-anchor="end">${lvl}%</text>
+        `;
+    }).join('');
+
+    // Benchmark line at 75%
+    const benchmarkY = paddingTop + chartH - (75 / 100) * chartH;
+    const benchmarkSvg = `
+        <line x1="${paddingLeft}" y1="${benchmarkY}" x2="${width - paddingRight}" y2="${benchmarkY}" stroke="#f59e0b" stroke-dasharray="5,4" stroke-width="1.5"/>
+        <text x="${width - paddingRight}" y="${benchmarkY - 6}" fill="#f59e0b" font-size="10" text-anchor="end" font-weight="600">ক্লাস টার্গেট (৭৫%)</text>
+    `;
+
+    // Calculate student coordinates
+    const points = sortedSubs.map((sub, index) => {
+        const ob = sub.evaluation?.obtainedMarks || 0;
+        const tot = sub.evaluation?.totalMarks || 20;
+        const pct = tot > 0 ? Math.min(100, Math.round((ob / tot) * 100)) : 0;
+
+        const x = sortedSubs.length === 1 
+            ? paddingLeft + chartW / 2 
+            : paddingLeft + (index / (sortedSubs.length - 1)) * chartW;
+        const y = paddingTop + chartH - (pct / 100) * chartH;
+
+        return { x, y, pct, title: sub.assignmentTitle, date: formatBanglaDateOnly(sub.submittedAt) };
+    });
+
+    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+
+    // Area fill polygon
+    const areaPoints = [
+        `${points[0].x},${paddingTop + chartH}`,
+        ...points.map(p => `${p.x},${p.y}`),
+        `${points[points.length - 1].x},${paddingTop + chartH}`
+    ].join(' ');
+
+    const nodesSvg = points.map((p, idx) => `
+        <circle cx="${p.x}" cy="${p.y}" r="5" fill="#6366f1" stroke="#ffffff" stroke-width="2"/>
+        <text x="${p.x}" y="${p.y - 10}" fill="#6366f1" font-size="11" font-weight="700" text-anchor="middle">${p.pct}%</text>
+        <text x="${p.x}" y="${paddingTop + chartH + 18}" fill="var(--text-muted)" font-size="10" text-anchor="middle">#${idx + 1}</text>
+    `).join('');
+
+    container.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" class="analytics-svg" style="width: 100%; max-height: 260px; overflow: visible;">
+            <defs>
+                <linearGradient id="scoreAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#6366f1" stop-opacity="0.35"/>
+                    <stop offset="100%" stop-color="#6366f1" stop-opacity="0.0"/>
+                </linearGradient>
+            </defs>
+            ${gridLinesSvg}
+            ${benchmarkSvg}
+            <polygon points="${areaPoints}" fill="url(#scoreAreaGradient)"/>
+            <polyline points="${polylinePoints}" fill="none" stroke="#6366f1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            ${nodesSvg}
+        </svg>
+    `;
+}
+
+// Window global bindings for seamless inline click accessibility
+window.initTheme = initTheme;
+window.toggleDarkTheme = toggleDarkTheme;
+window.updateLiveNoticeAlert = updateLiveNoticeAlert;
+window.dismissLiveNoticeAlert = dismissLiveNoticeAlert;
+window.openLiveNoticeModal = openLiveNoticeModal;
+window.loadAttendanceForSelectedDate = loadAttendanceForSelectedDate;
+window.renderAttendanceGrid = renderAttendanceGrid;
+window.setStudentAttendanceStatus = setStudentAttendanceStatus;
+window.markAllStudentsPresent = markAllStudentsPresent;
+window.saveDailyAttendance = saveDailyAttendance;
+window.sendAbsentWhatsAppAlert = sendAbsentWhatsAppAlert;
+window.openNewDoubtModal = openNewDoubtModal;
+window.handleCreateDoubt = handleCreateDoubt;
+window.renderStudentDoubts = renderStudentDoubts;
+window.renderTeacherDoubts = renderTeacherDoubts;
+window.openResolveDoubtModal = openResolveDoubtModal;
+window.toggleDoubtVoiceRecording = toggleDoubtVoiceRecording;
+window.handleSaveDoubtSolution = handleSaveDoubtSolution;
+window.openAddStudyMaterialModal = openAddStudyMaterialModal;
+window.toggleMaterialInputType = toggleMaterialInputType;
+window.handleCreateStudyMaterial = handleCreateStudyMaterial;
+window.deleteStudyMaterial = deleteStudyMaterial;
+window.renderTeacherStudyMaterials = renderTeacherStudyMaterials;
+window.renderStudentStudyMaterials = renderStudentStudyMaterials;
+window.openCreateNoticeModal = openCreateNoticeModal;
+window.handleCreateNotice = handleCreateNotice;
+window.deleteNotice = deleteNotice;
+window.renderTeacherNotices = renderTeacherNotices;
+window.renderStudentNotices = renderStudentNotices;
+window.openNoticeDetailModal = openNoticeDetailModal;
+window.sendNoticeWhatsAppBroadcast = sendNoticeWhatsAppBroadcast;
+window.renderStudentPerformanceChart = renderStudentPerformanceChart;
+window.toggleVoiceRecording = toggleVoiceRecording;
+window.discardVoiceRecording = discardVoiceRecording;
+window.generateAiKhataFeedback = generateAiKhataFeedback;
+window.formatKhataWhatsAppMessage = formatKhataWhatsAppMessage;
+window.sendWhatsAppKhataResult = sendWhatsAppKhataResult;
+window.shareEvaluatedKhataWhatsApp = shareEvaluatedKhataWhatsApp;
+window.sendReportCardWhatsApp = sendReportCardWhatsApp;
+window.openStudentReportCardModal = openStudentReportCardModal;
+window.renderStudentBadges = renderStudentBadges;
+window.openTeacherSettingsModal = openTeacherSettingsModal;
+window.handleSaveTeacherSettings = handleSaveTeacherSettings;

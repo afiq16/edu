@@ -42,7 +42,7 @@ function initFirebaseApp() {
             if (badge && badgeText) {
                 badge.style.background = "linear-gradient(135deg, #ecfdf5, #d1fae5)";
                 badge.style.borderColor = "#10b981";
-                badgeText.innerHTML = `🔥 Firebase লাইভ কানেক্টেড`;
+                badgeText.innerHTML = `অনলাইন`;
             }
         } catch (e) {
             console.warn("Firebase initialization notice:", e);
@@ -53,7 +53,7 @@ function initFirebaseApp() {
 // Storage Engine with Firebase Cloud Sync + Local IndexedDB fallback
 class StorageEngine {
     constructor() {
-        this.dbName = "EduCheckDB_Fresh_v6";
+        this.dbName = "EduCheckDB_Fresh_v8";
         this.dbVersion = 1;
         this.db = null;
         this.init();
@@ -65,6 +65,7 @@ class StorageEngine {
             indexedDB.deleteDatabase("EduCheckDB");
             indexedDB.deleteDatabase("EduCheckDB_v1");
             indexedDB.deleteDatabase("EduCheckDB_v2");
+            indexedDB.deleteDatabase("EduCheckDB_Fresh_v6");
         } catch (e) {}
 
         return new Promise((resolve) => {
@@ -83,6 +84,18 @@ class StorageEngine {
                 }
                 if (!db.objectStoreNames.contains("notifications")) {
                     db.createObjectStore("notifications", { keyPath: "id" });
+                }
+                if (!db.objectStoreNames.contains("attendance")) {
+                    db.createObjectStore("attendance", { keyPath: "id" });
+                }
+                if (!db.objectStoreNames.contains("doubts")) {
+                    db.createObjectStore("doubts", { keyPath: "id" });
+                }
+                if (!db.objectStoreNames.contains("study_materials")) {
+                    db.createObjectStore("study_materials", { keyPath: "id" });
+                }
+                if (!db.objectStoreNames.contains("notices")) {
+                    db.createObjectStore("notices", { keyPath: "id" });
                 }
             };
 
@@ -266,7 +279,7 @@ class StorageEngine {
 
     async purgeAllDataPermanently() {
         console.log("🧨 Initiating full permanent database wipe...");
-        const collections = ["students", "assignments", "submissions", "notifications"];
+        const collections = ["students", "assignments", "submissions", "notifications", "attendance", "doubts", "study_materials", "notices"];
 
         // 1. Wipe all Cloud Firestore collections completely
         if (fbFirestore) {
