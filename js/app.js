@@ -66,15 +66,76 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 /**
- * Setup real-time updates from Firebase Cloud Firestore
+ * Setup real-time updates from Firebase Cloud Firestore for ALL collections
  */
 function setupRealtimeFirebaseListeners() {
     if (typeof fbFirestore !== 'undefined' && fbFirestore) {
         try {
-            // 1. Listen for submissions in real-time
+            // 1. Listen for students in real-time
+            fbFirestore.collection("students").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    if (!data || !data.id) return;
+                    const index = state.students.findIndex(s => s.id === data.id);
+                    if (change.type === "added") {
+                        if (index === -1) state.students.push(data);
+                        else state.students[index] = data;
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.students[index] = data;
+                        else state.students.push(data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.students.splice(index, 1);
+                    }
+                    window.dbStorage.setLocal("students", data);
+                });
+
+                // Update active student session if their data changed
+                if (state.currentUser && state.currentUser.role === 'student') {
+                    const myUpdated = state.students.find(s => s.id === state.currentUser.id || s.phone === state.currentUser.phone);
+                    if (myUpdated) {
+                        state.currentUser = { ...state.currentUser, ...myUpdated };
+                        localStorage.setItem("educheck_saved_user_data", JSON.stringify(state.currentUser));
+                    }
+                }
+
+                if (state.currentUser?.role === 'teacher') {
+                    renderTeacherRoster();
+                    renderTeacherDashboard();
+                } else if (state.currentUser?.role === 'student') {
+                    renderStudentDashboard();
+                }
+            }, err => console.warn("Students listener notice:", err));
+
+            // 2. Listen for assignments in real-time
+            fbFirestore.collection("assignments").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    if (!data || !data.id) return;
+                    const index = state.assignments.findIndex(a => a.id === data.id);
+                    if (change.type === "added") {
+                        if (index === -1) state.assignments.unshift(data);
+                        else state.assignments[index] = data;
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.assignments[index] = data;
+                        else state.assignments.unshift(data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.assignments.splice(index, 1);
+                    }
+                    window.dbStorage.setLocal("assignments", data);
+                });
+
+                if (state.currentUser?.role === 'teacher') {
+                    renderTeacherDashboard();
+                } else if (state.currentUser?.role === 'student') {
+                    renderStudentDashboard();
+                }
+            }, err => console.warn("Assignments listener notice:", err));
+
+            // 3. Listen for submissions in real-time
             fbFirestore.collection("submissions").onSnapshot((snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     const data = change.doc.data();
+                    if (!data || !data.id) return;
                     const index = state.submissions.findIndex(s => s.id === data.id);
                     if (change.type === "added") {
                         if (index === -1) {
@@ -102,6 +163,8 @@ function setupRealtimeFirebaseListeners() {
                             state.submissions.unshift(data);
                             window.dbStorage.setLocal("submissions", data);
                         }
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.submissions.splice(index, 1);
                     }
                 });
                 if (state.currentUser?.role === 'teacher') {
@@ -109,17 +172,22 @@ function setupRealtimeFirebaseListeners() {
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentDashboard();
                 }
-            });
+            }, err => console.warn("Submissions listener notice:", err));
 
-            // 2. Listen for daily attendance in real-time
+            // 4. Listen for daily attendance in real-time
             fbFirestore.collection("attendance").onSnapshot((snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     const data = change.doc.data();
+                    if (!data || !data.id) return;
                     const index = state.attendance.findIndex(a => a.id === data.id);
-                    if (index === -1) {
-                        state.attendance.push(data);
-                    } else {
-                        state.attendance[index] = data;
+                    if (change.type === "added") {
+                        if (index === -1) state.attendance.push(data);
+                        else state.attendance[index] = data;
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.attendance[index] = data;
+                        else state.attendance.push(data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.attendance.splice(index, 1);
                     }
                     window.dbStorage.setLocal("attendance", data);
                 });
@@ -128,12 +196,13 @@ function setupRealtimeFirebaseListeners() {
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentDashboard();
                 }
-            });
+            }, err => console.warn("Attendance listener notice:", err));
 
-            // 3. Listen for doubts / questions in real-time
+            // 5. Listen for doubts / questions in real-time
             fbFirestore.collection("doubts").onSnapshot((snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     const data = change.doc.data();
+                    if (!data || !data.id) return;
                     const index = state.doubts.findIndex(d => d.id === data.id);
                     if (change.type === "added") {
                         if (index === -1) state.doubts.unshift(data);
@@ -141,6 +210,8 @@ function setupRealtimeFirebaseListeners() {
                     } else if (change.type === "modified") {
                         if (index !== -1) state.doubts[index] = data;
                         else state.doubts.unshift(data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.doubts.splice(index, 1);
                     }
                     window.dbStorage.setLocal("doubts", data);
                 });
@@ -149,17 +220,22 @@ function setupRealtimeFirebaseListeners() {
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentDoubts();
                 }
-            });
+            }, err => console.warn("Doubts listener notice:", err));
 
-            // 4. Listen for study materials in real-time
+            // 6. Listen for study materials in real-time
             fbFirestore.collection("study_materials").onSnapshot((snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     const data = change.doc.data();
+                    if (!data || !data.id) return;
                     const index = state.studyMaterials.findIndex(m => m.id === data.id);
-                    if (index === -1) {
-                        state.studyMaterials.unshift(data);
-                    } else {
-                        state.studyMaterials[index] = data;
+                    if (change.type === "added") {
+                        if (index === -1) state.studyMaterials.unshift(data);
+                        else state.studyMaterials[index] = data;
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.studyMaterials[index] = data;
+                        else state.studyMaterials.unshift(data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.studyMaterials.splice(index, 1);
                     }
                     window.dbStorage.setLocal("study_materials", data);
                 });
@@ -168,17 +244,22 @@ function setupRealtimeFirebaseListeners() {
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentStudyMaterials();
                 }
-            });
+            }, err => console.warn("Study materials listener notice:", err));
 
-            // 5. Listen for notice board broadcasts in real-time
+            // 7. Listen for notice board broadcasts in real-time
             fbFirestore.collection("notices").onSnapshot((snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     const data = change.doc.data();
+                    if (!data || !data.id) return;
                     const index = state.notices.findIndex(n => n.id === data.id);
-                    if (index === -1) {
-                        state.notices.unshift(data);
-                    } else {
-                        state.notices[index] = data;
+                    if (change.type === "added") {
+                        if (index === -1) state.notices.unshift(data);
+                        else state.notices[index] = data;
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.notices[index] = data;
+                        else state.notices.unshift(data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.notices.splice(index, 1);
                     }
                     window.dbStorage.setLocal("notices", data);
                 });
@@ -188,11 +269,11 @@ function setupRealtimeFirebaseListeners() {
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentNotices();
                 }
-            });
+            }, err => console.warn("Notices listener notice:", err));
 
-            console.log("📡 Real-time Firestore sync active for all collections (Khata, Attendance, Doubts, Notes, Notices)");
+            console.log("📡 Real-time Cloud Firestore sync active across ALL collections (Students, HW, Khata, Attendance, Doubts, Notes, Notices)");
         } catch (err) {
-            console.warn("Real-time listener notice:", err);
+            console.warn("Real-time listener setup error:", err);
         }
     }
 }
@@ -218,34 +299,10 @@ function generateNextStudentId() {
 }
 
 /**
- * Initialize IndexedDB and sync with clean fresh dataset
- * Permanently wipes all previous data on first launch to ensure a 100% brand new database
- * (User request: "mainkotha fulll database notun kore daww jaja achilo osb dlt koro permanent")
+ * Initialize Database and sync with Cloud Firestore
  */
 async function initDatabase() {
     try {
-        const FRESH_PERMANENT_WIPE_KEY = "educheck_fresh_db_permanent_wipe_v7";
-        const hasWiped = localStorage.getItem(FRESH_PERMANENT_WIPE_KEY);
-
-        if (!hasWiped) {
-            // First time loading this version: completely wipe all previous/legacy data everywhere
-            if (window.dbStorage && typeof window.dbStorage.purgeAllDataPermanently === 'function') {
-                await window.dbStorage.purgeAllDataPermanently();
-            }
-
-            localStorage.removeItem("educheck_saved_role");
-            localStorage.removeItem("educheck_saved_student_phone");
-            state.currentUser = null;
-
-            localStorage.setItem(FRESH_PERMANENT_WIPE_KEY, "true");
-
-            state.students = [];
-            state.assignments = [];
-            state.submissions = [];
-            state.notifications = [];
-            return;
-        }
-
         const [students, assigns, subs, notifs, atts, doubts, materials, notices] = await Promise.all([
             window.dbStorage.getAll("students"),
             window.dbStorage.getAll("assignments"),
@@ -257,37 +314,19 @@ async function initDatabase() {
             window.dbStorage.getAll("notices")
         ]);
 
-        const DEMO_NAMES = ["সাদিয়া আহমেদ", "সাকিব আল হাসান", "আরিফুল ইসলাম", "নুসরাত জাহান", "তানভীর আহমেদ", "রাফি হাসান", "aaa"];
-        const DEMO_PHONES = ["01711000001", "01822000002", "01933000003", "01744000004", "01855000005"];
-
-        // Clean out any old demo students from previous runs
-        const cleanStudents = (students || []).filter(s => {
-            if (!s) return false;
-            const isDemo = DEMO_NAMES.includes(s.name) || DEMO_PHONES.includes(s.phone);
-            if (isDemo && window.dbStorage && typeof window.dbStorage.delete === 'function') {
-                window.dbStorage.delete("students", s.id).catch(() => {});
-            }
-            return !isDemo;
-        });
-
-        // Clean out any old demo submissions tied to demo names
-        const cleanSubs = (subs || []).filter(s => {
-            if (!s) return false;
-            const isDemo = DEMO_NAMES.includes(s.studentName) || (s.studentName === 'aaa');
-            if (isDemo && window.dbStorage && typeof window.dbStorage.delete === 'function') {
-                window.dbStorage.delete("submissions", s.id).catch(() => {});
-            }
-            return !isDemo;
-        });
-
-        state.students = cleanStudents;
+        state.students = students || [];
         state.assignments = assigns || [];
-        state.submissions = cleanSubs;
+        state.submissions = subs || [];
         state.notifications = notifs || [];
         state.attendance = atts || [];
         state.doubts = doubts || [];
         state.studyMaterials = materials || [];
         state.notices = notices || [];
+        console.log(`📊 Initial database loaded: ${state.students.length} students, ${state.assignments.length} assignments, ${state.submissions.length} submissions`);
+    } catch (err) {
+        console.error("Database initialization error:", err);
+    }
+}
     } catch (e) {
         console.warn("Storage sync:", e);
         state.students = [];

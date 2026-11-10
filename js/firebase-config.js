@@ -22,6 +22,50 @@ let fbAuth = null;
 let fbFirestore = null;
 let fbStorage = null;
 
+/**
+ * Deep sanitize an object before sending to Cloud Firestore.
+ * Removes all undefined properties and converts them safely.
+ */
+function sanitizeForFirestore(obj) {
+    if (obj === undefined) return null;
+    if (obj === null || typeof obj !== 'object') return obj;
+    if (obj instanceof Date) return obj.toISOString();
+    if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeForFirestore(item)).filter(item => item !== undefined);
+    }
+    const clean = {};
+    for (const key of Object.keys(obj)) {
+        const val = obj[key];
+        if (val === undefined) {
+            clean[key] = null;
+        } else if (val !== null && typeof val === 'object') {
+            clean[key] = sanitizeForFirestore(val);
+        } else {
+            clean[key] = val;
+        }
+    }
+    return clean;
+}
+
+/**
+ * Update UI online status badge
+ */
+function updateFirebaseOnlineIndicator(isOnline) {
+    const badge = document.getElementById("storageModeBadge");
+    const badgeText = document.getElementById("storageModeText");
+    if (badge && badgeText) {
+        if (isOnline) {
+            badge.style.background = "linear-gradient(135deg, #ecfdf5, #d1fae5)";
+            badge.style.borderColor = "#10b981";
+            badgeText.innerHTML = `অনলাইন`;
+        } else {
+            badge.style.background = "linear-gradient(135deg, #fef3c7, #fde68a)";
+            badge.style.borderColor = "#f59e0b";
+            badgeText.innerHTML = `অফলাইন`;
+        }
+    }
+}
+
 // Initialize Firebase SDK when loaded
 function initFirebaseApp() {
     if (typeof firebase !== 'undefined' && isFirebaseLive) {
@@ -32,20 +76,22 @@ function initFirebaseApp() {
                 fbApp = firebase.app();
             }
             if (firebase.auth) fbAuth = firebase.auth();
-            if (firebase.firestore) fbFirestore = firebase.firestore();
+            if (firebase.firestore) {
+                fbFirestore = firebase.firestore();
+                // Enable offline cache persistence for instant offline & cloud sync
+                try {
+                    fbFirestore.enablePersistence({ synchronizeTabs: true }).catch(err => {
+                        console.warn("Firestore persistence notice:", err.code);
+                    });
+                } catch (e) {}
+            }
             if (firebase.storage) fbStorage = firebase.storage();
 
             console.log("🔥 Firebase initialized successfully with project:", FIREBASE_CONFIG.projectId);
-
-            const badge = document.getElementById("storageModeBadge");
-            const badgeText = document.getElementById("storageModeText");
-            if (badge && badgeText) {
-                badge.style.background = "linear-gradient(135deg, #ecfdf5, #d1fae5)";
-                badge.style.borderColor = "#10b981";
-                badgeText.innerHTML = `অনলাইন`;
-            }
+            updateFirebaseOnlineIndicator(true);
         } catch (e) {
-            console.warn("Firebase initialization notice:", e);
+            console.warn("Firebase initialization error:", e);
+            updateFirebaseOnlineIndicator(false);
         }
     }
 }
@@ -53,50 +99,24 @@ function initFirebaseApp() {
 // Storage Engine with Firebase Cloud Sync + Local IndexedDB fallback
 class StorageEngine {
     constructor() {
-        this.dbName = "EduCheckDB_Fresh_v8";
+        this.dbName = "EduCheckDB_CloudSync_v1";
         this.dbVersion = 1;
         this.db = null;
         this.init();
     }
 
     async init() {
-        // Drop legacy old IndexedDB databases if they exist
-        try {
-            indexedDB.deleteDatabase("EduCheckDB");
-            indexedDB.deleteDatabase("EduCheckDB_v1");
-            indexedDB.deleteDatabase("EduCheckDB_v2");
-            indexedDB.deleteDatabase("EduCheckDB_Fresh_v6");
-        } catch (e) {}
-
         return new Promise((resolve) => {
             const request = indexedDB.open(this.dbName, this.dbVersion);
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
-                if (!db.objectStoreNames.contains("students")) {
-                    db.createObjectStore("students", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("assignments")) {
-                    db.createObjectStore("assignments", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("submissions")) {
-                    db.createObjectStore("submissions", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("notifications")) {
-                    db.createObjectStore("notifications", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("attendance")) {
-                    db.createObjectStore("attendance", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("doubts")) {
-                    db.createObjectStore("doubts", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("study_materials")) {
-                    db.createObjectStore("study_materials", { keyPath: "id" });
-                }
-                if (!db.objectStoreNames.contains("notices")) {
-                    db.createObjectStore("notices", { keyPath: "id" });
-                }
+                const stores = ["students", "assignments", "submissions", "notifications", "attendance", "doubts", "study_materials", "notices"];
+                stores.forEach(s => {
+                    if (!db.objectStoreNames.contains(s)) {
+                        db.createObjectStore(s, { keyPath: "id" });
+                    }
+                });
             };
 
             request.onsuccess = (event) => {
@@ -112,17 +132,23 @@ class StorageEngine {
     }
 
     async getAll(storeName) {
+        if (!fbFirestore && typeof initFirebaseApp === 'function') {
+            initFirebaseApp();
+        }
+
+        // 1. Get local cached records
         const localList = await this.getLocalAll(storeName);
         const localMap = new Map();
-        localList.forEach(item => { if (item && item.id) localMap.set(item.id, item); });
+        (localList || []).forEach(item => { if (item && item.id) localMap.set(item.id, item); });
 
-        // Try Cloud Firestore first if available (with fast 1.5s timeout to prevent freezing)
+        // 2. Query Cloud Firestore with 6s timeout
         if (fbFirestore) {
             try {
                 const fetchPromise = fbFirestore.collection(storeName).get();
-                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 1500));
+                const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6000));
                 const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
-                if (!snapshot.empty) {
+                
+                if (snapshot && !snapshot.empty) {
                     const mergedList = [];
                     snapshot.forEach(doc => {
                         const cloudItem = doc.data();
@@ -142,13 +168,21 @@ class StorageEngine {
                         localMap.delete(cloudItem.id);
                     });
 
-                    // Add remaining local items that haven't reached cloud yet
+                    // Add any remaining local items that haven't reached cloud yet
                     localMap.forEach(remainingItem => {
                         mergedList.push(remainingItem);
                         this.set(storeName, remainingItem);
                     });
 
                     return mergedList;
+                } else if (snapshot && snapshot.empty && localList.length > 0) {
+                    // Cloud collection is empty but local has items -> Sync all local items up to Cloud Firestore
+                    localList.forEach(item => {
+                        if (item && item.id) {
+                            this.set(storeName, item);
+                        }
+                    });
+                    return localList;
                 }
             } catch (err) {
                 console.warn(`Firestore getAll fallback for ${storeName}:`, err.message);
@@ -156,7 +190,7 @@ class StorageEngine {
         }
 
         // Fallback to IndexedDB
-        return localList;
+        return localList || [];
     }
 
     async getLocalAll(storeName) {
@@ -175,13 +209,14 @@ class StorageEngine {
     }
 
     async getById(storeName, id) {
+        if (!fbFirestore && typeof initFirebaseApp === 'function') {
+            initFirebaseApp();
+        }
         if (fbFirestore) {
             try {
-                const doc = await fbFirestore.collection(storeName).doc(id).get();
+                const doc = await fbFirestore.collection(storeName).doc(String(id)).get();
                 if (doc.exists) return doc.data();
-            } catch (e) {
-                // Ignore and use local
-            }
+            } catch (e) {}
         }
         if (!this.db) await this.init();
         return new Promise((resolve) => {
@@ -198,16 +233,22 @@ class StorageEngine {
     }
 
     async set(storeName, item) {
-        // Save to local IndexedDB immediately
+        if (!item) return false;
+        if (!fbFirestore && typeof initFirebaseApp === 'function') {
+            initFirebaseApp();
+        }
+
+        // 1. Save to local IndexedDB immediately
         await this.setLocal(storeName, item);
 
-        // Sync to Firebase Cloud Firestore
-        if (fbFirestore && item && item.id) {
+        // 2. Sync to Firebase Cloud Firestore
+        if (fbFirestore && item.id) {
             try {
-                await fbFirestore.collection(storeName).doc(item.id).set(item, { merge: true });
+                const sanitized = sanitizeForFirestore(item);
+                await fbFirestore.collection(storeName).doc(String(item.id)).set(sanitized, { merge: true });
                 console.log(`☁️ Synced to Firebase Firestore [${storeName}/${item.id}]`);
             } catch (err) {
-                console.warn(`Cloud Firestore sync error for ${storeName}:`, err.message);
+                console.warn(`Cloud Firestore sync error for ${storeName}/${item.id}:`, err.message);
             }
         }
         return true;
@@ -229,13 +270,22 @@ class StorageEngine {
     }
 
     async delete(storeName, id) {
+        if (!id) return false;
+        if (!fbFirestore && typeof initFirebaseApp === 'function') {
+            initFirebaseApp();
+        }
+
+        // 1. Delete from Firebase Cloud Firestore
         if (fbFirestore) {
             try {
-                await fbFirestore.collection(storeName).doc(id).delete();
-            } catch (e) {
-                console.warn("Cloud delete error:", e);
+                await fbFirestore.collection(storeName).doc(String(id)).delete();
+                console.log(`☁️ Deleted from Firebase Firestore [${storeName}/${id}]`);
+            } catch (err) {
+                console.warn(`Cloud delete error for ${storeName}/${id}:`, err.message);
             }
         }
+
+        // 2. Delete from local IndexedDB
         if (!this.db) await this.init();
         return new Promise((resolve) => {
             try {
@@ -305,21 +355,11 @@ class StorageEngine {
             } catch (e) {}
         }
 
-        // 3. Clear all LocalStorage / SessionStorage except the wipe flag
-        try {
-            const preserved = ["educheck_fresh_db_permanent_wipe_v7"];
-            for (let i = localStorage.length - 1; i >= 0; i--) {
-                const key = localStorage.key(i);
-                if (!preserved.includes(key)) {
-                    localStorage.removeItem(key);
-                }
-            }
-            sessionStorage.clear();
-        } catch (e) {}
-
         console.log("✅ Full permanent database wipe completed!");
         return true;
     }
 }
 
+// Auto initialize immediately
+initFirebaseApp();
 window.dbStorage = new StorageEngine();
