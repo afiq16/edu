@@ -1998,6 +1998,10 @@ html.session-restoring #authSection {
     display: block;
     cursor: crosshair;
     touch-action: none;
+    max-width: 100%;
+    height: auto;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
 }
 
 /* Right Evaluator Panel */
@@ -2114,37 +2118,152 @@ html.session-restoring #authSection {
     color: #cbd5e1;
 }
 
-/* Evaluated Student Khata View Modal */
-.evaluated-view-body {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+/* ==========================================================================
+   FULL DISPLAY EVALUATED KHATA & FULL-PAGE VERTICAL SCROLLING
+   ========================================================================== */
+#viewEvaluatedKhataModal.modal-overlay {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: rgba(11, 17, 32, 0.98) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+    z-index: 99999 !important;
 }
 
-.evaluated-score-card {
-    background: linear-gradient(135deg, #1e293b, #0f172a);
-    color: white;
-    border-radius: var(--radius-lg);
-    padding: 1.5rem;
-    display: flex;
-    gap: 2rem;
+#viewEvaluatedKhataModal .modal-card {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    max-height: 100vh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: #090d16 !important;
+    overflow: hidden !important;
+}
+
+#viewEvaluatedKhataModal .evaluated-modal-header {
+    flex-shrink: 0 !important;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 50 !important;
+    background: #0f172a !important;
+    border-bottom: 1px solid #1e293b !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    padding: 0.85rem 1.25rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+}
+
+.evaluated-modal-header .modal-header-top {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    gap: 12px !important;
+}
+
+.evaluated-modal-header .modal-title-box {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+
+.evaluated-modal-header .modal-title-box h3 {
+    font-size: 1.15rem !important;
+    font-weight: 700 !important;
+    color: #f8fafc !important;
+    line-height: 1.4 !important;
+    margin: 0 0 4px 0 !important;
+    word-break: break-word !important;
+}
+
+.evaluated-modal-header .modal-title-box small {
+    font-size: 0.82rem !important;
+    color: #94a3b8 !important;
+    line-height: 1.35 !important;
+    display: block !important;
+}
+
+.evaluated-actions-bar {
+    display: flex !important;
+    gap: 8px !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+}
+
+.evaluated-actions-bar .btn-action-pill {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    border-radius: 8px;
+    font-weight: 600;
+    display: inline-flex;
     align-items: center;
-    flex-wrap: wrap;
+    gap: 6px;
+}
+
+@media (min-width: 769px) {
+    .evaluated-actions-bar {
+        justify-content: flex-start !important;
+    }
+    .evaluated-actions-bar .btn-action-pill {
+        flex: 0 0 auto !important;
+    }
+}
+
+#viewEvaluatedKhataModal .evaluated-view-body {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 1.25rem 1rem 4rem 1rem !important;
+    max-width: 900px !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+    scroll-behavior: smooth !important;
+}
+
+#viewEvaluatedKhataModal .evaluated-score-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+    color: #ffffff !important;
+    border-radius: 16px !important;
+    padding: 1.25rem 1.5rem !important;
+    display: flex !important;
+    gap: 1.5rem !important;
+    align-items: center !important;
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.4), 0 8px 10px -6px rgba(15, 23, 42, 0.4) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    width: 100% !important;
 }
 
 .score-display {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    min-width: 140px;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
 .score-circle {
-    background: rgba(16, 185, 129, 0.15);
-    border: 3px solid var(--success);
-    width: 90px;
-    height: 90px;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0.06) 100%);
+    border: 3px solid #10b981;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), inset 0 0 10px rgba(16, 185, 129, 0.15);
+    width: 86px;
+    height: 86px;
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -2153,9 +2272,10 @@ html.session-restoring #authSection {
 }
 
 .score-num {
-    font-size: 1.8rem;
+    font-size: 1.9rem;
     font-weight: 800;
-    color: var(--success);
+    color: #10b981;
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
 }
 
 .score-divider {
@@ -2167,34 +2287,70 @@ html.session-restoring #authSection {
 .score-total {
     font-size: 1.1rem;
     color: #cbd5e1;
+    font-weight: 600;
+}
+
+.score-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
 }
 
 .score-badge {
-    background: var(--primary);
-    padding: 3px 10px;
-    border-radius: var(--radius-full);
-    font-size: 0.8rem;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #ffffff;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
     font-weight: 700;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    letter-spacing: 0.3px;
+    text-align: center;
+}
+
+.score-status-text {
+    font-size: 0.8rem;
+    color: #34d399;
+    font-weight: 600;
+    text-align: center;
+    white-space: normal;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .teacher-remarks-box {
     flex: 1;
+    min-width: 0;
     background: rgba(255, 255, 255, 0.05);
-    border-radius: var(--radius-md);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 12px;
     padding: 1rem 1.25rem;
-    border-left: 4px solid var(--warning);
+    border-left: 4px solid #f59e0b;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .remarks-header {
-    color: var(--warning);
-    font-size: 0.95rem;
+    color: #fbbf24;
+    font-size: 0.92rem;
+    font-weight: 700;
     margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .remarks-content {
-    color: #f1f5f9;
+    color: #f8fafc;
     font-size: 0.95rem;
-    line-height: 1.4;
+    line-height: 1.5;
+    word-break: break-word;
+    margin: 0;
 }
 
 .evaluated-date {
@@ -2204,18 +2360,285 @@ html.session-restoring #authSection {
     font-size: 0.75rem;
 }
 
-.checked-images-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    margin-top: 1rem;
+@media (max-width: 600px) {
+    #viewEvaluatedKhataModal .evaluated-score-card {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 1rem !important;
+        padding: 1rem !important;
+    }
+    .score-display {
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 1rem;
+        background: rgba(255, 255, 255, 0.04);
+        padding: 10px 14px;
+        border-radius: 12px;
+    }
+    .score-meta {
+        align-items: flex-start;
+        flex: 1;
+    }
+    .score-status-text {
+        text-align: left;
+    }
 }
 
-.checked-khata-img {
+/* Checked Khata Container & Full Height Cards */
+#viewEvaluatedKhataModal .checked-khata-container {
+    width: 100% !important;
+    margin-bottom: 2rem !important;
+    overflow: visible !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-container h4 {
+    font-size: 1.05rem !important;
+    font-weight: 700 !important;
+    color: #f8fafc !important;
+    margin-bottom: 1.25rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+#viewEvaluatedKhataModal .checked-images-list {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2rem !important;
+    width: 100% !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-card {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 16px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+    width: 100% !important;
+    transition: border-color 0.2s ease !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-card:hover {
+    border-color: #475569 !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-card-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 12px 18px !important;
+    background: rgba(15, 23, 42, 0.85) !important;
+    border-bottom: 1px solid #334155 !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-card-header .page-badge {
+    color: #60a5fa !important;
+    background: rgba(59, 130, 246, 0.18) !important;
+    border: 1px solid rgba(59, 130, 246, 0.3) !important;
+    font-weight: 700 !important;
+    font-size: 0.9rem !important;
+    padding: 4px 14px !important;
+    border-radius: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-card-header .page-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-img-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    border-radius: 0 0 16px 16px !important;
+    overflow: hidden !important;
+    cursor: zoom-in !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 200px !important;
+}
+
+#viewEvaluatedKhataModal .checked-khata-img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    display: block !important;
+    object-fit: contain !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+    image-rendering: high-quality !important;
+    border-radius: 0 0 16px 16px !important;
+}
+
+#viewEvaluatedKhataModal .khata-zoom-hint {
+    position: absolute !important;
+    bottom: 14px !important;
+    right: 14px !important;
+    background: rgba(15, 23, 42, 0.85) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    color: #ffffff !important;
+    font-size: 0.82rem !important;
+    font-weight: 600 !important;
+    padding: 6px 16px !important;
+    border-radius: 30px !important;
+    pointer-events: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+#viewEvaluatedKhataModal .evaluated-modal-footer {
+    flex-shrink: 0 !important;
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 50 !important;
+    background: rgba(15, 23, 42, 0.95) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border-top: 1px solid #1e293b !important;
+    padding: 10px 1.25rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+/* HD Fullscreen Lightbox Modal */
+.khata-lightbox-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
-    border-radius: var(--radius-md);
-    border: 2px solid var(--border);
-    box-shadow: var(--shadow-md);
+    height: 100%;
+    background: rgba(10, 15, 29, 0.94);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 10px;
+}
+
+.khata-lightbox-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.khata-lightbox-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 8px 16px;
+    border-radius: 12px;
+    color: white;
+    flex-shrink: 0;
+    margin-bottom: 8px;
+    gap: 12px;
+}
+
+.lightbox-page-indicator {
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lightbox-tools {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.lightbox-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.95rem;
+    transition: all 0.15s ease;
+}
+
+.lightbox-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.lightbox-close-btn {
+    background: rgba(239, 68, 68, 0.25);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
+    margin-left: 4px;
+}
+
+.lightbox-close-btn:hover {
+    background: #ef4444;
+    color: white;
+}
+
+.khata-lightbox-viewport {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: 12px;
+    position: relative;
+    padding: 1rem;
+    touch-action: pan-x pan-y pinch-zoom;
+}
+
+.khata-lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.85);
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    transition: transform 0.15s ease-out;
+    transform-origin: center center;
+    background: #ffffff;
+}
+
+.khata-lightbox-footer-hint {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.78rem;
+    padding: 6px 0;
+    flex-shrink: 0;
 }
 
 /* SMS Simulator Modal */
@@ -2371,23 +2794,6 @@ html.session-restoring #authSection {
         white-space: nowrap !important;
     }
 
-    @media (max-width: 420px) {
-        .app-download-nav-btn span {
-            display: none !important;
-        }
-        .app-download-nav-btn {
-            padding: 5px 8px !important;
-            border-radius: 50px !important;
-        }
-        .brand-name {
-            font-size: 0.98rem !important;
-        }
-        .role-tab-btn {
-            padding: 4px 6px !important;
-            font-size: 0.7rem !important;
-        }
-    }
-
     .theme-toggle-btn {
         width: 34px !important;
         height: 34px !important;
@@ -2524,8 +2930,7 @@ html.session-restoring #authSection {
 
     /* Table Container Touch Scroll Protection */
     .roster-table-container,
-    .leaderboard-container,
-    .checked-khata-container {
+    .leaderboard-container {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch !important;
         width: 100% !important;
@@ -2551,6 +2956,23 @@ html.session-restoring #authSection {
     .role-tab-btn {
         padding: 4px 6px !important;
         font-size: 0.72rem !important;
+    }
+}
+
+@media (max-width: 420px) {
+    .app-download-nav-btn span {
+        display: none !important;
+    }
+    .app-download-nav-btn {
+        padding: 5px 8px !important;
+        border-radius: 50px !important;
+    }
+    .brand-name {
+        font-size: 0.98rem !important;
+    }
+    .role-tab-btn {
+        padding: 4px 6px !important;
+        font-size: 0.7rem !important;
     }
 }
 
@@ -2850,8 +3272,7 @@ body.is-logged-in .teacher-tab-pane {
 .materials-grid,
 .notices-list,
 .roster-table-container,
-.attendance-grid,
-.checked-khata-container {
+.attendance-grid {
     margin-bottom: 80px !important;
 }
 
