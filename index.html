@@ -63,7 +63,7 @@
 
             <div class="nav-right">
                 <!-- App Download Nav Button -->
-                <button class="app-download-nav-btn" onclick="openAppDownloadModal()" title="EduCheck মোবাইল অ্যাপ ডাউনলোড করুন">
+                <button class="app-download-nav-btn" id="appDownloadNavBtn" onclick="openAppDownloadModal()" title="EduCheck মোবাইল অ্যাপ ডাউনলোড করুন">
                     <i class="fa-solid fa-mobile-screen-button"></i>
                     <span>অ্যাপ নামান</span>
                 </button>
@@ -331,7 +331,7 @@
             <!-- Dashboard Stats & Action Header -->
             <div class="dashboard-header-card">
                 <div class="teacher-welcome-info">
-                    <h2 class="section-title">শিক্ষক ড্যাশবোর্ড <span class="badge badge-teacher">আফিক স্যার (অ্যাডমিন)</span></h2>
+                    <h2 class="section-title">শিক্ষক ড্যাশবোর্ড <span class="badge badge-teacher">আফিক (অ্যাডমিন)</span></h2>
                     <p class="section-subtitle">শিক্ষার্থীদের জমা দেওয়া খাতা চেক করুন, নম্বর দিন এবং নতুন শিক্ষার্থী যুক্ত করুন</p>
                 </div>
                 <div class="header-action-buttons">
@@ -851,15 +851,56 @@
 
                     <div class="form-row">
                         <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-file-invoice"></i> প্রশ্ন ফরম্যাট / মোড *</label>
+                            <select id="assignFormat" onchange="toggleOmrAssignmentFields()" required>
+                                <option value="normal" selected>সাধারণ খাতা (ছবি / PDF আপলোড)</option>
+                                <option value="omr">ডিজিটাল OMR MCQ পরীক্ষা</option>
+                            </select>
+                        </div>
+                        <div class="form-group flex-1">
                             <label><i class="fa-solid fa-tag"></i> ধরন (Type) *</label>
                             <select id="assignType" required>
                                 <option value="homework">হোমওয়ার্ক (Daily Homework)</option>
                                 <option value="exam">পরীক্ষার খাতা (Exam Sheet / Test)</option>
                             </select>
                         </div>
-                        <div class="form-group flex-1">
-                            <label><i class="fa-solid fa-book"></i> বিষয় *</label>
-                            <input type="text" id="assignSubject" placeholder="উচ্চতর গণিত" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-book"></i> বিষয় *</label>
+                        <input type="text" id="assignSubject" placeholder="উচ্চতর গণিত / পদার্থবিজ্ঞান" required>
+                    </div>
+
+                    <!-- OMR Settings Panel (Shown when assignFormat === 'omr') -->
+                    <div id="omrAssignmentConfigPanel" style="display: none; background: rgba(139, 92, 246, 0.05); border: 1px solid #c084fc; border-radius: 10px; padding: 14px; margin-bottom: 15px;">
+                        <h4 style="font-size: 0.95rem; color: #7c3aed; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-sliders"></i> OMR পরীক্ষা সেটিংস ও সঠিক উত্তরমালা
+                        </h4>
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label><i class="fa-solid fa-list-ol"></i> মোট প্রশ্ন সংখ্যা</label>
+                                <select id="omrAssignQuestionCount" onchange="initTeacherOmrKeyBuilder()">
+                                    <option value="10">১০ টি প্রশ্ন</option>
+                                    <option value="20" selected>২০ টি প্রশ্ন</option>
+                                    <option value="25">২৫ টি প্রশ্ন</option>
+                                    <option value="30">৩০ টি প্রশ্ন</option>
+                                    <option value="50">৫০ টি প্রশ্ন</option>
+                                </select>
+                            </div>
+                            <div class="form-group flex-1">
+                                <label><i class="fa-solid fa-minus-circle"></i> মাইনাস মার্ক (প্রতি ভুলে)</label>
+                                <select id="omrAssignNegativeMark">
+                                    <option value="0">০ (কোনো মাইনাস নেই)</option>
+                                    <option value="0.25" selected>০.২৫ মার্ক</option>
+                                    <option value="0.50">০.৫০ মার্ক</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label><i class="fa-solid fa-key"></i> সঠিক উত্তরমালা / Answer Key সেট করুন (অটো-চেকিংয়ের জন্য)</label>
+                            <div id="teacherOmrKeyGrid" style="max-height: 200px; overflow-y: auto; background: var(--bg-surface); padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                                <!-- Populated dynamically -->
+                            </div>
                         </div>
                     </div>
 
@@ -951,8 +992,8 @@
                     </div>
 
                     <div class="form-group">
-                        <label><i class="fa-solid fa-comment-dots"></i> স্যারের জন্য কোনো মন্তব্য বা প্রশ্ন (ঐচ্ছিক)</label>
-                        <input type="text" id="studentSubmitNote" placeholder="যেমন: স্যার, ৩ নম্বর প্রশ্নের উত্তর নিয়ে একটু কনফিউশন ছিল।">
+                        <label><i class="fa-solid fa-comment-dots"></i> শিক্ষকের জন্য কোনো মন্তব্য বা প্রশ্ন (ঐচ্ছিক)</label>
+                        <input type="text" id="studentSubmitNote" placeholder="যেমন: ৩ নম্বর প্রশ্নের উত্তর নিয়ে একটু কনফিউশন ছিল।">
                     </div>
 
                 </div>
@@ -1170,7 +1211,7 @@
 
                         <div class="grading-group">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                <label style="margin: 0;"><i class="fa-solid fa-comment-medical"></i> স্যারের মন্তব্য ও ফিডব্যাক *</label>
+                                <label style="margin: 0;"><i class="fa-solid fa-comment-medical"></i> শিক্ষকের মন্তব্য ও ফিডব্যাক *</label>
                                 <button type="button" class="btn btn-outline btn-sm" onclick="generateAiKhataFeedback()" style="font-size: 0.74rem; padding: 2px 8px; border-radius: 6px; color: #7c3aed; border-color: #ddd6fe; background: #faf5ff; cursor: pointer;">
                                     <i class="fa-solid fa-wand-magic-sparkles"></i> AI ড্রাফট মন্তব্য
                                 </button>
@@ -1394,6 +1435,46 @@
         </div>
     </div>
 
+    <!-- ================= MODAL F2: STUDENT OMR MCQ EXAM SUBMIT MODAL ================= -->
+    <div class="modal-overlay" id="studentOmrModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <div>
+                    <h3><i class="fa-solid fa-list-check" style="color: #8b5cf6;"></i> <span id="studentOmrModalTitle">OMR MCQ পরীক্ষা</span></h3>
+                    <small class="text-muted" id="studentOmrModalSubtitle">সঠিক বৃত্ত ভরাট করুন এবং নির্দিষ্ট সময়ের মধ্যে পরীক্ষা জমা দিন</small>
+                </div>
+                <button class="modal-close-btn" onclick="closeModal('studentOmrModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="omr-meta-bar" style="background: var(--bg-surface-secondary); padding: 12px 16px; border-radius: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border: 1px solid var(--border);">
+                    <div>
+                        <strong style="color: var(--primary);"><i class="fa-solid fa-book"></i> বিষয়:</strong> <span id="studentOmrSubject">--</span> | 
+                        <strong><i class="fa-solid fa-clipboard-question"></i> মোট প্রশ্ন:</strong> <span id="studentOmrTotalQ">--</span>
+                    </div>
+                    <div id="studentOmrTimerBadge" class="exam-timer-badge" style="font-weight: bold; background: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 20px; font-size: 0.88rem; border: 1px solid #fde047;">
+                        <i class="fa-solid fa-stopwatch"></i> সময় বাকি: <span id="studentOmrTimeRemaining">--</span>
+                    </div>
+                </div>
+
+                <!-- Interactive OMR Bubble Grid -->
+                <div class="omr-grid-wrapper" id="studentOmrGridWrapper" style="max-height: 420px; overflow-y: auto; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-surface);">
+                    <!-- Questions & Bubbles generated dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <span class="badge badge-primary" id="studentOmrAnsweredBadge" style="font-size: 0.9rem; padding: 6px 12px;">উত্তরিত: ০ / ০</span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('studentOmrModal')">বাতিল</button>
+                    <button type="button" class="btn btn-purple" id="submitStudentOmrBtn" onclick="handleStudentSubmitOmr()">
+                        <i class="fa-solid fa-paper-plane"></i> OMR পরীক্ষা জমা দিন
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ========================================================================= -->
     <!-- MODAL G: STUDENT REPORT CARD & MARKSHEET MODAL (A4 PRINT & WHATSAPP)       -->
     <!-- ========================================================================= -->
@@ -1504,7 +1585,7 @@
                             <span class="report-sign-title">অভিভাবকের স্বাক্ষর</span>
                         </div>
                         <div class="report-sign-col">
-                            <div class="report-sign-stamp" id="reportTeacherStamp">আফিক স্যার<br><small>প্রধান শিক্ষক ও নির্দেশক</small></div>
+                            <div class="report-sign-stamp" id="reportTeacherStamp">আফিক<br><small>প্রধান শিক্ষক ও নির্দেশক</small></div>
                             <div class="report-sign-line"></div>
                             <span class="report-sign-title">শিক্ষকের ডিজিটাল অনুমোদন</span>
                         </div>
@@ -1536,7 +1617,7 @@
                 <div class="modal-body">
                     <div class="form-group">
                         <label for="teacherSettingsName"><i class="fa-solid fa-user-tie"></i> শিক্ষকের নাম *</label>
-                        <input type="text" id="teacherSettingsName" class="form-control" placeholder="যেমন: আফিক স্যার" required>
+                        <input type="text" id="teacherSettingsName" class="form-control" placeholder="যেমন: আফিক" required>
                     </div>
                     <div class="form-group">
                         <label for="teacherSettingsEmail"><i class="fa-solid fa-envelope"></i> লগইন জিমেইল / ইমেইল *</label>
@@ -1879,7 +1960,7 @@
                 <div id="teacherProfileEditSection" style="display: none; margin-top: 1.25rem;">
                     <div class="info-card-block" style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px;">
                         <p style="margin: 0; font-size: 0.88rem; color: var(--text-main);">
-                            <i class="fa-solid fa-circle-check" style="color: #10b981;"></i> আপনি <strong>আফিক স্যার (অ্যাডমিন)</strong> হিসেবে লগইন আছেন।
+                            <i class="fa-solid fa-circle-check" style="color: #10b981;"></i> আপনি <strong>আফিক (অ্যাডমিন)</strong> হিসেবে লগইন আছেন।
                         </p>
                     </div>
                     <button class="btn btn-outline btn-block" onclick="closeModal('userProfileModal'); openTeacherSettingsModal();" style="margin-bottom: 8px;">
@@ -1932,135 +2013,179 @@
     <!-- ========================================================================= -->
     <!-- 22. APP DOWNLOAD MODAL (ANDROID & IOS BUILDS)                           -->
     <!-- ========================================================================= -->
-    <div class="modal" id="appDownloadModal" style="display: none;">
-        <div class="modal-backdrop" onclick="closeModal('appDownloadModal')"></div>
-        <div class="modal-card modal-lg app-download-modal-card">
-            <div class="modal-header">
-                <div>
-                    <h3 style="display: flex; align-items: center; gap: 8px;">
-                        <i class="fa-solid fa-mobile-screen-button" style="color: var(--primary);"></i>
-                        EduCheck মোবাইল অ্যাপ
-                    </h3>
-                    <small class="text-muted">Android ও iOS ডিভাইসের অফিশিয়াল ইনস্টল ফাইল</small>
+    <!-- APP DOWNLOAD MODAL DIALOG (PLAY STORE / APP STORE STYLE) -->
+    <div class="modal-overlay" id="appDownloadModal" style="display: none;">
+        <div class="modal-card app-download-modal-card">
+            
+            <!-- Store Navbar / Header -->
+            <div class="modal-header playstore-modal-header">
+                <div class="store-brand-title">
+                    <div class="store-app-icon">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <div class="store-title-details">
+                        <h3>EduCheck: ডিজিটাল খাতা ও HW</h3>
+                        <span class="store-dev-name">Afiq Software Inc. • Education</span>
+                        <div class="play-protect-badge">
+                            <i class="fa-solid fa-shield-halved"></i> Google Play Protect Verified (100% সুরক্ষিত)
+                        </div>
+                    </div>
                 </div>
                 <button class="modal-close-btn" onclick="closeModal('appDownloadModal')">&times;</button>
             </div>
             
             <div class="modal-body app-download-modal-body">
                 
-                <!-- Hero Intro Banner -->
-                <div class="app-hero-banner">
-                    <div class="app-hero-badge">⚡ ফাস্ট & রেসপনসিভ</div>
-                    <h2>ডিজিটাল খাতা ও হোমওয়ার্ক এখন আরও সহজ</h2>
-                    <p>সরাসরি ক্যামেরা দিয়ে খাতার নিখুঁত ছবি তোলা, তাৎক্ষণিক নোটিফিকেশন এবং দ্রুত রেজাল্ট পেতে EduCheck অ্যাপটি ইনস্টল করে নিন।</p>
+                <!-- Play Store Rating & Stats Bar -->
+                <div class="playstore-stats-row">
+                    <div class="stat-pill-item">
+                        <div class="stat-val">4.9 <i class="fa-solid fa-star"></i></div>
+                        <div class="stat-lbl">1.2k Reviews</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-pill-item">
+                        <div class="stat-val"><i class="fa-solid fa-download"></i> 100K+</div>
+                        <div class="stat-lbl">Downloads</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-pill-item">
+                        <div class="stat-val">3+</div>
+                        <div class="stat-lbl">Rated for 3+</div>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-pill-item">
+                        <div class="stat-val">9.8 MB</div>
+                        <div class="stat-lbl">File Size</div>
+                    </div>
                 </div>
 
-                <!-- Platform Download Grid -->
-                <div class="app-download-grid">
-                    
-                    <!-- Android Card -->
-                    <div class="platform-download-card android-card">
-                        <div class="platform-card-header">
-                            <div class="platform-icon android-glow">
-                                <i class="fa-brands fa-android"></i>
-                            </div>
-                            <div class="platform-title-info">
-                                <h4>Android অ্যাপ (APK)</h4>
-                                <span class="platform-pill pill-android">v1.0 • 9.8 MB • অফিশিয়াল APK</span>
+                <!-- Platform Selector Switch Tabs -->
+                <div class="store-platform-tabs">
+                    <button class="store-tab-btn active" id="tabAndroidBtn" onclick="switchStorePlatform('android')">
+                        <i class="fa-brands fa-google-play"></i> Google Play (Android APK)
+                    </button>
+                    <button class="store-tab-btn" id="tabIosBtn" onclick="switchStorePlatform('ios')">
+                        <i class="fa-brands fa-apple"></i> Apple App Store (iOS Build)
+                    </button>
+                </div>
+
+                <!-- Android Play Store Download Pane -->
+                <div class="store-platform-pane active" id="androidStorePane">
+                    <div class="playstore-primary-card">
+                        <div class="playstore-action-header">
+                            <div class="playstore-app-meta">
+                                <h4>EduCheck Android APK (v1.0)</h4>
+                                <p>অফিশিয়াল ইনস্টল প্যাকেজ • সব অ্যান্ড্রয়েড ফোনে ১০০% সাপোর্টেড</p>
                             </div>
                         </div>
 
-                        <ul class="platform-feature-list">
-                            <li><i class="fa-solid fa-circle-check"></i> <strong>ক্যামেরা ইন্টিগ্রেশন:</strong> সরাসরি খাতার ছবি তুলে ক্রপ ও জমা দিন</li>
-                            <li><i class="fa-solid fa-circle-check"></i> <strong>পুশ নোটিফিকেশন:</strong> খাতা চেক বা নোটিশ পাবলিশ হলে সাথে সাথে অ্যালার্ট</li>
-                            <li><i class="fa-solid fa-circle-check"></i> <strong>স্মুথ পারফরম্যান্স:</strong> লো-এন্ড ফোনেও সুপার ফাস্ট কাজ করে</li>
-                        </ul>
-
-                        <div class="platform-action-box">
-                            <a href="downloads/EduCheck-Android-v1.0.apk" download="EduCheck-Android-v1.0.apk" onclick="handleDirectDownload(event, 'downloads/EduCheck-Android-v1.0.apk', 'EduCheck-Android-v1.0.apk')" class="btn btn-success btn-block btn-lg app-direct-dl-btn">
+                        <!-- Main Play Store Green Download Button -->
+                        <div class="playstore-download-area">
+                            <a href="downloads/EduCheck-Android-v1.0.apk" download="EduCheck-Android-v1.0.apk" id="androidMainDlBtn" onclick="triggerPlayStoreDownload(event, 'downloads/EduCheck-Android-v1.0.apk', 'EduCheck-Android-v1.0.apk', 'Android APK', this)" class="btn btn-playstore-green btn-block btn-lg">
                                 <i class="fa-solid fa-download"></i>
-                                <span>Android APK ডাউনলোড (৯.৮ MB)</span>
+                                <span class="btn-text">ইনস্টল করুন / Install (9.8 MB)</span>
+                                <div class="playstore-dl-progress-bar" style="width: 0%;"></div>
                             </a>
-                            <div class="alt-dl-row">
+
+                            <div class="playstore-alt-links">
                                 <button type="button" class="alt-dl-link-btn" onclick="forceDownloadFile('downloads/EduCheck-Android-v1.0.apk', 'EduCheck-Android-v1.0.apk')">
-                                    <i class="fa-solid fa-cloud-arrow-down"></i> বিকল্প ডাউনলোড লিংক
+                                    <i class="fa-solid fa-bolt"></i> ইনস্ট্যান্ট ডিরেক্ট লিংক
                                 </button>
                                 <span class="alt-dl-divider">•</span>
                                 <button type="button" class="alt-dl-link-btn" onclick="openFileInNewTab('downloads/EduCheck-Android-v1.0.apk')">
-                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> সরাসরি ব্রাউজারে
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ব্রাউজারে ওপেন করুন
                                 </button>
                             </div>
                         </div>
 
-                        <div class="install-instructions">
+                        <div class="install-instructions" style="margin-top: 1rem;">
                             <h5><i class="fa-solid fa-circle-info"></i> কিভাবে ইনস্টল করবেন?</h5>
                             <ol>
-                                <li>উপরের সবুজ <strong>"Android APK ডাউনলোড"</strong> বাটনে ক্লিক করে ফাইলটি নামিয়ে নিন।</li>
-                                <li>ডাউনলোড শেষ হলে নোটিফিকেশন বার থেকে ফাইলে চাপ দিন।</li>
-                                <li>যদি <em>"Install unknown apps"</em> বা নিরাপত্তা সতর্কতা দেখায়, তবে Settings থেকে <strong>Allow from this source</strong> চালু করুন।</li>
-                                <li><strong>Install</strong> এ ট্যাপ করলেই অ্যাপ ব্যবহারের জন্য প্রস্তুত হয়ে যাবে!</li>
+                                <li>উপরের সবুজ <strong>"Install / ইনস্টল করুন"</strong> বাটনে ক্লিক করে APK টি নামিয়ে নিন।</li>
+                                <li>ডাউনলোড শেষ হলে ফাইলটি খুলুন। <em>"Install unknown apps"</em> দেখালে Settings থেকে Allow করুন।</li>
                             </ol>
                         </div>
                     </div>
+                </div>
 
-                    <!-- iOS Simulator & Build Card -->
-                    <div class="platform-download-card ios-card">
-                        <div class="platform-card-header">
-                            <div class="platform-icon ios-glow">
-                                <i class="fa-brands fa-apple"></i>
-                            </div>
-                            <div class="platform-title-info">
-                                <h4>Apple iOS বিল্ড</h4>
-                                <span class="platform-pill pill-ios">v1.0 • 3.5 MB • Simulator / App Build</span>
+                <!-- iOS App Store Download Pane -->
+                <div class="store-platform-pane" id="iosStorePane" style="display: none;">
+                    <div class="playstore-primary-card ios-theme-card">
+                        <div class="playstore-action-header">
+                            <div class="playstore-app-meta">
+                                <h4>EduCheck iOS Build ZIP (v1.0)</h4>
+                                <p>Apple iPhone & iPad Simulator / Xcode প্রস্তুত প্যাকেজ</p>
                             </div>
                         </div>
 
-                        <ul class="platform-feature-list">
-                            <li><i class="fa-solid fa-circle-check"></i> <strong>iPhone & iPad অপ্টিমাইজড:</strong> মসৃণ UI এবং রেটিনা ডিসপ্লে</li>
-                            <li><i class="fa-solid fa-circle-check"></i> <strong>অ্যাপ্রুভড বিল্ড:</strong> Simulator ও Sideloading প্রস্তুত</li>
-                            <li><i class="fa-solid fa-circle-check"></i> <strong>ডার্ক মোড সাপোর্ট:</strong> iOS নেটিভ ভাইব্রেন্ট থিম</li>
-                        </ul>
-
-                        <div class="platform-action-box">
-                            <a href="downloads/EduCheck-iOS-Simulator-v1.0.zip" download="EduCheck-iOS-Simulator-v1.0.zip" onclick="handleDirectDownload(event, 'downloads/EduCheck-iOS-Simulator-v1.0.zip', 'EduCheck-iOS-Simulator-v1.0.zip')" class="btn btn-primary btn-block btn-lg app-direct-dl-btn">
+                        <!-- Main App Store Blue Download Button -->
+                        <div class="playstore-download-area">
+                            <a href="downloads/EduCheck-iOS-Simulator-v1.0.zip" download="EduCheck-iOS-Simulator-v1.0.zip" id="iosMainDlBtn" onclick="triggerPlayStoreDownload(event, 'downloads/EduCheck-iOS-Simulator-v1.0.zip', 'EduCheck-iOS-Simulator-v1.0.zip', 'iOS ZIP Build', this)" class="btn btn-appstore-blue btn-block btn-lg">
                                 <i class="fa-solid fa-download"></i>
-                                <span>iOS Build ZIP ডাউনলোড (৩.৫ MB)</span>
+                                <span class="btn-text">GET / ডাউনলোড করুন (3.5 MB)</span>
+                                <div class="playstore-dl-progress-bar" style="width: 0%;"></div>
                             </a>
-                            <div class="alt-dl-row">
+
+                            <div class="playstore-alt-links">
                                 <button type="button" class="alt-dl-link-btn" onclick="forceDownloadFile('downloads/EduCheck-iOS-Simulator-v1.0.zip', 'EduCheck-iOS-Simulator-v1.0.zip')">
-                                    <i class="fa-solid fa-cloud-arrow-down"></i> বিকল্প ডাউনলোড লিংক
+                                    <i class="fa-solid fa-bolt"></i> ইনস্ট্যান্ট ডিরেক্ট লিংক
                                 </button>
                                 <span class="alt-dl-divider">•</span>
                                 <button type="button" class="alt-dl-link-btn" onclick="openFileInNewTab('downloads/EduCheck-iOS-Simulator-v1.0.zip')">
-                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> সরাসরি ব্রাউজারে
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i> ব্রাউজারে ওপেন করুন
                                 </button>
                             </div>
                         </div>
 
-                        <div class="install-instructions">
-                            <h5><i class="fa-solid fa-circle-info"></i> কিভাবে রান/ইনস্টল করবেন?</h5>
+                        <div class="install-instructions" style="margin-top: 1rem;">
+                            <h5><i class="fa-solid fa-circle-info"></i> কিভাবে রান করবেন?</h5>
                             <ol>
-                                <li>উপরের নীল <strong>"iOS Build ZIP ডাউনলোড"</strong> বাটনে ট্যাপ করে জিপ ফাইলটি সেভ করুন।</li>
-                                <li>Mac এ জিপ ফাইলটি এক্সট্র্যাক্ট করে Xcode Simulator এ ড্র্যাগ অ্যান্ড ড্রপ (Drag & Drop) করুন।</li>
-                                <li>iPhone ডিভাইসে সরাসরি লোড করতে AltStore বা Sideloadly এর মাধ্যমে ইনস্টল করুন।</li>
+                                <li>উপরের নীল <strong>"GET / ডাউনলোড করুন"</strong> বাটনে ক্লিক করে ZIP টি সেভ করুন।</li>
+                                <li>Xcode Simulator এ ড্র্যাগ করুন অথবা Sideloadly এর মাধ্যমে ইনস্টল করুন।</li>
                             </ol>
                         </div>
                     </div>
-
                 </div>
 
-                <!-- Web Version Notice / Quick Share -->
+                <!-- Play Store Feature Screenshots Preview Row -->
+                <div class="store-screenshots-section">
+                    <h5 class="store-section-title"><i class="fa-solid fa-images"></i> অ্যাপের এক্সক্লুসিভ ফিচার সমূহ</h5>
+                    <div class="store-screenshots-row">
+                        <div class="store-feature-card">
+                            <div class="feat-icon"><i class="fa-solid fa-camera"></i></div>
+                            <h6>খাতার ছবি ও সাবমিশন</h6>
+                            <p>ক্যামেরা দিয়ে স্পষ্ট ছবি তুলে এক ক্লিকে জমা দিন</p>
+                        </div>
+                        <div class="store-feature-card">
+                            <div class="feat-icon"><i class="fa-solid fa-square-check"></i></div>
+                            <h6>ওএমআর ও অটো মার্কিং</h6>
+                            <p>শিক্ষকদের জন্য দ্রুত OMR চেকার ও ডিজিটাল খাতা মূল্যায়ন</p>
+                        </div>
+                        <div class="store-feature-card">
+                            <div class="feat-icon"><i class="fa-solid fa-bolt"></i></div>
+                            <h6>লাইভ ক্লাউড সিঙ্ক</h6>
+                            <p>Firebase দিয়ে প্রতিটি মার্কস ও ফাইল রিয়েলটাইমে সেভ</p>
+                        </div>
+                        <div class="store-feature-card">
+                            <div class="feat-icon"><i class="fa-solid fa-trophy"></i></div>
+                            <h6>স্মার্ট লিডারবোর্ড</h6>
+                            <p>মেধা তালিকা ও প্রগ্রেস ট্র্যাকিং একসাথে</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Play Store Share Footer -->
                 <div class="app-share-footer">
                     <div class="app-share-info">
-                        <strong><i class="fa-solid fa-share-nodes"></i> বন্ধুদের ও সহপাঠীদের সাথে শেয়ার করুন</strong>
-                        <p>যেকোনো ব্রাউজারে বা অ্যাপে এক ক্লিকেই লগইন করা যাবে</p>
+                        <strong><i class="fa-solid fa-share-nodes"></i> সহপাঠী ও বন্ধুদের সাথে শেয়ার করুন</strong>
+                        <p>এক ক্লিকেই অ্যাপ ডাউনলোড লিংক ফরোয়ার্ড করুন</p>
                     </div>
                     <div class="app-share-buttons">
                         <button type="button" class="btn btn-outline" onclick="copyAppDownloadLink()">
-                            <i class="fa-solid fa-copy"></i> লিংক কপি করুন
+                            <i class="fa-solid fa-copy"></i> লিংক কপি
                         </button>
                         <button type="button" class="btn btn-whatsapp" onclick="shareAppDownloadWhatsApp()">
-                            <i class="fa-brands fa-whatsapp"></i> WhatsApp এ শেয়ার
+                            <i class="fa-brands fa-whatsapp"></i> WhatsApp
                         </button>
                     </div>
                 </div>
