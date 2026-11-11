@@ -91,7 +91,7 @@ function initFirebaseApp() {
                 try {
                     fbFirestore.settings({
                         experimentalAutoDetectLongPolling: true,
-                        merge: true
+                        ignoreUndefinedProperties: true
                     });
                 } catch (e) {
                     console.warn("Firestore settings notice:", e);

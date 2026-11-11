@@ -70,6 +70,57 @@ function getSubmissionPages(sub) {
 }
 window.getSubmissionPages = getSubmissionPages;
 
+/**
+ * Universal Student Matching Engine across Mobile, Desktop, Sessions & Format variations
+ */
+function isStudentMatch(subOrItem, user) {
+    if (!subOrItem || !user) return false;
+
+    // Normalize IDs
+    const itemStudentId = String(subOrItem.studentId || subOrItem.id || '').trim().toLowerCase();
+    const userId = String(user.id || '').trim().toLowerCase();
+
+    // 1. Direct ID match
+    if (itemStudentId && userId && itemStudentId === userId) return true;
+
+    // Helper to normalize phone digits (converting Bengali digits & stripping non-digits)
+    const normPhone = (val) => {
+        if (!val) return '';
+        const bnDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+        const s = String(val).replace(/[০-৯]/g, d => bnDigits.indexOf(d));
+        return s.replace(/[^0-9]/g, '');
+    };
+
+    const itemPhone = normPhone(subOrItem.studentPhone || subOrItem.phone || '');
+    const userPhone = normPhone(user.phone || user.id || '');
+
+    // 2. Direct Phone match (handles 017..., 88017..., +88017...)
+    if (itemPhone && userPhone) {
+        const p1 = itemPhone.startsWith('880') ? itemPhone.substring(2) : itemPhone;
+        const p2 = userPhone.startsWith('880') ? userPhone.substring(2) : userPhone;
+        if (p1 === p2) return true;
+        if (p1.length >= 8 && p2.length >= 8 && (p1.endsWith(p2) || p2.endsWith(p1))) return true;
+    }
+
+    // 3. Match item studentId against user phone or vice-versa
+    if (itemStudentId && userPhone && (itemStudentId === userPhone || itemStudentId.includes(userPhone) || userPhone.includes(itemStudentId))) return true;
+    if (userId && itemPhone && (userId === itemPhone || userId.includes(itemPhone) || itemPhone.includes(userId))) return true;
+
+    // 4. Case-insensitive clean Name match
+    const itemName = String(subOrItem.studentName || subOrItem.name || '').trim().toLowerCase();
+    const userName = String(user.name || '').trim().toLowerCase();
+    if (itemName && userName && !userName.startsWith('শিক্ষার্থী (')) {
+        const cleanItemName = itemName.replace(/\s*\(.*?\)\s*/g, '').trim();
+        const cleanUserName = userName.replace(/\s*\(.*?\)\s*/g, '').trim();
+        if (cleanItemName && cleanUserName && (cleanItemName === cleanUserName || cleanItemName.includes(cleanUserName) || cleanUserName.includes(cleanItemName))) {
+            return true;
+        }
+    }
+
+    return false;
+}
+window.isStudentMatch = isStudentMatch;
+
 // ==========================================================================
 // INITIALIZATION
 // ==========================================================================
@@ -166,8 +217,10 @@ function setupRealtimeFirebaseListeners() {
 
                 if (state.currentUser?.role === 'teacher') {
                     renderTeacherDashboard();
+                    renderTeacherAssignments();
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentDashboard();
+                    renderStudentActiveHw();
                 }
             }, err => console.warn("Assignments listener notice:", err));
 
@@ -210,8 +263,11 @@ function setupRealtimeFirebaseListeners() {
                 });
                 if (state.currentUser?.role === 'teacher') {
                     renderTeacherDashboard();
+                    renderTeacherSubmissions();
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentDashboard();
+                    renderStudentHistory();
+                    renderStudentActiveHw();
                 }
             }, err => console.warn("Submissions listener notice:", err));
 
@@ -238,6 +294,7 @@ function setupRealtimeFirebaseListeners() {
                     loadAttendanceForSelectedDate();
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentDashboard();
+                    renderStudentDayByDayAttendance();
                 }
             }, err => console.warn("Attendance listener notice:", err));
 
@@ -367,8 +424,10 @@ function setupRealtimeFirebaseListeners() {
                 });
                 if (state.currentUser?.role === 'teacher') {
                     renderTeacherClassLogs();
+                    renderTeacherDashboard();
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentClassLogs();
+                    renderStudentDashboard();
                 }
             }, err => console.warn("Class logs listener notice:", err));
 
@@ -1188,20 +1247,25 @@ function switchTeacherTab(tabName) {
 
 function renderTeacherDashboard() {
     // Stats calculation
-    const totalStudents = state.students.length;
-    const pendingKhata = state.submissions.filter(s => s.status === 'pending').length;
-    const checkedKhata = state.submissions.filter(s => s.status === 'checked').length;
-    const totalAssignments = state.assignments.length;
+    const totalStudents = (state.students || []).length;
+    const pendingKhata = (state.submissions || []).filter(s => s.status === 'pending').length;
+    const checkedKhata = (state.submissions || []).filter(s => s.status === 'checked').length;
+    const totalAssignments = (state.assignments || []).length;
 
-    const pendingDoubts = state.doubts.filter(d => d.status === 'pending').length;
+    const pendingDoubts = (state.doubts || []).filter(d => d.status === 'pending').length;
     const doubtBadge = document.getElementById("teacherPendingDoubtsCount");
     if (doubtBadge) doubtBadge.textContent = pendingDoubts;
 
-    document.getElementById("statTotalStudents").textContent = totalStudents;
-    document.getElementById("statPendingKhata").textContent = pendingKhata;
-    document.getElementById("statCheckedKhata").textContent = checkedKhata;
-    document.getElementById("statTotalAssignments").textContent = totalAssignments;
-    document.getElementById("pendingSubCount").textContent = pendingKhata;
+    const elStatTotalStudents = document.getElementById("statTotalStudents");
+    if (elStatTotalStudents) elStatTotalStudents.textContent = totalStudents;
+    const elStatPendingKhata = document.getElementById("statPendingKhata");
+    if (elStatPendingKhata) elStatPendingKhata.textContent = pendingKhata;
+    const elStatCheckedKhata = document.getElementById("statCheckedKhata");
+    if (elStatCheckedKhata) elStatCheckedKhata.textContent = checkedKhata;
+    const elStatTotalAssign = document.getElementById("statTotalAssignments");
+    if (elStatTotalAssign) elStatTotalAssign.textContent = totalAssignments;
+    const elPendingSubCount = document.getElementById("pendingSubCount");
+    if (elPendingSubCount) elPendingSubCount.textContent = pendingKhata;
 
     renderTeacherSubmissions();
     renderTeacherClassLogs();
@@ -1210,6 +1274,7 @@ function renderTeacherDashboard() {
 
 function renderTeacherSubmissions() {
     const grid = document.getElementById("teacherSubmissionsGrid");
+    if (!grid) return;
     const searchQuery = (document.getElementById("submissionSearchInput")?.value || "").toLowerCase();
     const statusFilter = document.getElementById("filterSubmissionStatus")?.value || "all";
     const typeFilter = document.getElementById("filterSubmissionType")?.value || "all";
@@ -1311,13 +1376,14 @@ function filterSubmissions() {
 
 function renderTeacherStudentsList() {
     const grid = document.getElementById("teacherStudentsGrid");
+    if (!grid) return;
     const query = (document.getElementById("studentSearchInput")?.value || "").toLowerCase();
 
-    const filtered = state.students.filter(s => 
-        s.name.toLowerCase().includes(query) ||
-        s.phone.includes(query) ||
-        s.id.toLowerCase().includes(query) ||
-        s.class.toLowerCase().includes(query)
+    const filtered = (state.students || []).filter(s => 
+        (s.name && s.name.toLowerCase().includes(query)) ||
+        (s.phone && s.phone.includes(query)) ||
+        (s.id && s.id.toLowerCase().includes(query)) ||
+        (s.class && s.class.toLowerCase().includes(query))
     );
 
     if (filtered.length === 0) {
@@ -1379,6 +1445,7 @@ window.filterTeacherClassLogsForStudent = filterTeacherClassLogsForStudent;
 
 function renderTeacherAssignments() {
     const grid = document.getElementById("teacherAssignmentsGrid");
+    if (!grid) return;
     if (!state.assignments || state.assignments.length === 0) {
         grid.innerHTML = `
             <div style="grid-column: 1/-1; text-align: center; padding: 3rem 1.5rem; background: white; border-radius: 12px; border: 1px dashed #cbd5e1;">
@@ -1871,6 +1938,24 @@ async function handleSaveEvaluation(event) {
         sub.pages[state.currentEvaluatingPageIndex] = checkedImageBase64;
         delete sub.evaluatedImages; // Remove duplicate to save 50% document size in Firestore
 
+        // Dynamic page compression to guarantee ultra-fast sync under 1MB Firestore limit
+        if (window.freeStorage && typeof window.freeStorage.compressBatch === 'function') {
+            try {
+                sub.pages = await window.freeStorage.compressBatch(sub.pages);
+            } catch (err) {
+                console.warn("Evaluation pages compression notice:", err);
+            }
+        }
+
+        // Ensure studentPhone and studentRoll are populated from student record if missing
+        if (!sub.studentPhone && Array.isArray(state.students)) {
+            const matchedSt = state.students.find(st => isStudentMatch(sub, st));
+            if (matchedSt) {
+                sub.studentPhone = matchedSt.phone || "";
+                sub.studentRoll = matchedSt.roll || "";
+            }
+        }
+
         sub.status = "checked";
         sub.evaluation = {
             obtainedMarks,
@@ -1973,7 +2058,7 @@ function switchStudentTab(tabName) {
         const pane = document.getElementById("paneStudentAnalytics");
         if (pane) pane.style.display = "block";
         const student = state.currentUser;
-        const mySubs = state.submissions.filter(s => s.studentId === student?.id && s.status === 'checked');
+        const mySubs = state.submissions.filter(s => isStudentMatch(s, student) && s.status === 'checked');
         renderStudentPerformanceChart(student, mySubs);
     } else if (tabName === 'doubts') {
         document.getElementById("tabStudentDoubts")?.classList.add("active");
@@ -2010,7 +2095,7 @@ function renderStudentLeaderboard() {
 
     // Calculate score metrics for each student
     const studentRanks = state.students.map(student => {
-        const studentSubs = state.submissions.filter(s => s.studentId === student.id && s.status === 'checked');
+        const studentSubs = state.submissions.filter(s => isStudentMatch(s, student) && s.status === 'checked');
         const checkedCount = studentSubs.length;
         let avgPct = 0;
         let totalMarksSum = 0;
@@ -2084,15 +2169,21 @@ async function renderStudentDashboard() {
         }
     } catch (e) {}
 
-    document.getElementById("studentProfileName").textContent = student.name;
-    document.getElementById("studentProfileImg").src = student.avatar;
-    document.getElementById("studentProfileClass").innerHTML = `<i class="fa-solid fa-school"></i> ${student.class || 'Class 10'}`;
-    document.getElementById("studentProfileSub").innerHTML = `<i class="fa-solid fa-book"></i> ${student.subject || student.group || 'বিজ্ঞান শাখা'}`;
-    document.getElementById("studentProfileId").innerHTML = `<i class="fa-solid fa-id-card"></i> ID: ${student.id}`;
-    document.getElementById("studentProfilePhone").innerHTML = `<i class="fa-solid fa-phone"></i> ${student.phone}`;
+    const elName = document.getElementById("studentProfileName");
+    if (elName) elName.textContent = student.name || 'শিক্ষার্থী';
+    const elImg = document.getElementById("studentProfileImg");
+    if (elImg) elImg.src = student.avatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=Student';
+    const elClass = document.getElementById("studentProfileClass");
+    if (elClass) elClass.innerHTML = `<i class="fa-solid fa-school"></i> ${student.class || 'Class 10'}`;
+    const elSub = document.getElementById("studentProfileSub");
+    if (elSub) elSub.innerHTML = `<i class="fa-solid fa-book"></i> ${student.subject || student.group || 'বিজ্ঞান শাখা'}`;
+    const elId = document.getElementById("studentProfileId");
+    if (elId) elId.innerHTML = `<i class="fa-solid fa-id-card"></i> ID: ${student.id}`;
+    const elPhone = document.getElementById("studentProfilePhone");
+    if (elPhone) elPhone.innerHTML = `<i class="fa-solid fa-phone"></i> ${student.phone || '--'}`;
 
     // Calculate student analytics metrics
-    const mySubs = state.submissions.filter(s => s.studentId === student.id);
+    const mySubs = (state.submissions || []).filter(s => isStudentMatch(s, student));
     const totalSubs = mySubs.length;
     const checkedSubs = mySubs.filter(s => s.status === 'checked');
     const checkedCount = checkedSubs.length;
@@ -2100,8 +2191,8 @@ async function renderStudentDashboard() {
     let avgScorePercent = 0;
     if (checkedCount > 0) {
         const totalPct = checkedSubs.reduce((acc, s) => {
-            const ob = s.evaluation?.obtainedMarks || 0;
-            const tot = s.evaluation?.totalMarks || 20;
+            const ob = s.evaluation?.obtainedMarks ?? 0;
+            const tot = s.evaluation?.totalMarks ?? 20;
             return acc + (tot > 0 ? (ob / tot) * 100 : 0);
         }, 0);
         avgScorePercent = Math.round(totalPct / checkedCount);
@@ -2127,17 +2218,20 @@ async function renderStudentDashboard() {
     if (statGradeEl) statGradeEl.textContent = grade;
 
     // Calculate attendance percentage for student badge
-    const studentAttRecords = state.attendance.filter(a => a.records && a.records[student.id]);
+    const studentAttRecords = state.attendance.filter(a => a.records && (a.records[student.id] || (student.phone && a.records[student.phone])));
     let attPct = 100;
     if (studentAttRecords.length > 0) {
-        const presentDays = studentAttRecords.filter(a => a.records[student.id] === 'present' || a.records[student.id] === 'late').length;
+        const presentDays = studentAttRecords.filter(a => {
+            const status = a.records[student.id] || (student.phone ? a.records[student.phone] : null);
+            return status === 'present' || status === 'late';
+        }).length;
         attPct = Math.round((presentDays / studentAttRecords.length) * 100);
     }
     const attTag = document.getElementById("studentProfileAttendance");
     if (attTag) attTag.innerHTML = `<i class="fa-solid fa-calendar-check"></i> উপস্থিতি: ${attPct}%`;
 
     // Pending doubts badge
-    const myDoubts = state.doubts.filter(d => d.studentId === student.id);
+    const myDoubts = (state.doubts || []).filter(d => isStudentMatch(d, student));
     const pendingDoubtsCount = myDoubts.filter(d => d.status === 'pending').length;
     const studentDoubtBadge = document.getElementById("studentPendingDoubtsCount");
     if (studentDoubtBadge) studentDoubtBadge.textContent = pendingDoubtsCount;
@@ -2151,9 +2245,11 @@ async function renderStudentDashboard() {
 
 function renderStudentActiveHw() {
     const grid = document.getElementById("studentAssignmentsGrid");
+    if (!grid) return;
     const student = state.currentUser;
+    if (!student) return;
 
-    const myAssignments = state.assignments.filter(a => a.class === 'All' || a.class === student.class);
+    const myAssignments = (state.assignments || []).filter(a => a.class === 'All' || a.class === student.class);
 
     if (myAssignments.length === 0) {
         grid.innerHTML = `
@@ -2171,7 +2267,7 @@ function renderStudentActiveHw() {
 
     grid.innerHTML = myAssignments.map(a => {
         // Check if student already submitted this
-        const alreadySub = state.submissions.find(s => s.assignmentId === a.id && s.studentId === student.id);
+        const alreadySub = state.submissions.find(s => (s.assignmentId === a.id || (a.id === 'GENERAL' && s.assignmentId === 'GENERAL')) && isStudentMatch(s, student));
         const isOmr = a.isOmr || a.format === 'omr';
 
         return `
@@ -2517,15 +2613,14 @@ function openStudentOmrViewModal(submissionId) {
 
 function renderStudentHistory() {
     const grid = document.getElementById("studentHistoryGrid");
+    if (!grid) return;
     const student = state.currentUser;
+    if (!student) return;
 
-    const mySubs = state.submissions.filter(s => 
-        (student && s.studentId === student.id) ||
-        (student && student.phone && s.studentPhone === student.phone) ||
-        (student && s.studentName && s.studentName.toLowerCase() === student.name.toLowerCase())
-    );
+    const mySubs = (state.submissions || []).filter(s => isStudentMatch(s, student));
     const checkedCount = mySubs.filter(s => s.status === 'checked').length;
-    document.getElementById("studentCheckedCount").textContent = checkedCount;
+    const elChecked = document.getElementById("studentCheckedCount");
+    if (elChecked) elChecked.textContent = checkedCount;
 
     if (mySubs.length === 0) {
         grid.innerHTML = `
@@ -2560,11 +2655,11 @@ function renderStudentHistory() {
 
                     ${isChecked ? `
                         <div class="sub-evaluation-summary">
-                            <span>প্রাপ্ত মার্কস: ${sub.evaluation.obtainedMarks}/${sub.evaluation.totalMarks} (${sub.evaluation.grade})</span>
+                            <span>প্রাপ্ত মার্কস: ${sub.evaluation?.obtainedMarks ?? '--'}/${sub.evaluation?.totalMarks ?? '--'} (${sub.evaluation?.grade ?? 'মূল্যায়ন সম্পন্ন'})</span>
                             <i class="fa-solid fa-award"></i>
                         </div>
                         <div style="font-size: 0.85rem; color: #1e293b; background: #fffbeb; padding: 8px 12px; border-radius: 6px; margin-top: 6px;">
-                            <strong>শিক্ষকের মন্তব্য:</strong> "${sub.evaluation.remarks}"
+                            <strong>শিক্ষকের মন্তব্য:</strong> "${sub.evaluation?.remarks ?? 'খাতা মূল্যায়ন সম্পন্ন হয়েছে।'}"
                         </div>
                     ` : `
                         <div style="font-size: 0.8rem; color: #64748b; font-style: italic;">
@@ -2733,6 +2828,8 @@ async function handleStudentHomeworkSubmit(event) {
         const newSub = {
             id: "SUB-" + Date.now(),
             studentId: student ? student.id : (state.currentUser ? state.currentUser.id : generateNextStudentId()),
+            studentPhone: student ? (student.phone || "") : (state.currentUser ? (state.currentUser.phone || "") : ""),
+            studentRoll: student ? (student.roll || "") : (state.currentUser ? (state.currentUser.roll || "") : ""),
             studentName: student ? student.name : (state.currentUser ? state.currentUser.name : "শিক্ষার্থী"),
             studentAvatar: student ? (student.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=Student") : "https://api.dicebear.com/7.x/bottts/svg?seed=Student",
             studentClass: student ? (student.class || "Class 10") : "Class 10",
@@ -2778,7 +2875,7 @@ function viewEvaluatedKhata(submissionId) {
     const sub = state.submissions.find(s => s.id === submissionId);
     if (!sub) return;
 
-    document.getElementById("viewKhataTitle").innerHTML = `<i class="fa-solid fa-award"></i> ${sub.assignmentTitle}`;
+    document.getElementById("viewKhataTitle").innerHTML = `<i class="fa-solid fa-award"></i> ${escapeHtml(sub.assignmentTitle)}`;
     document.getElementById("viewKhataSubtitle").textContent = `শিক্ষার্থী: ${sub.studentName} • জমা: ${formatBanglaDateTime(sub.submittedAt)}`;
 
     if (sub.evaluation) {
@@ -2799,9 +2896,22 @@ function viewEvaluatedKhata(submissionId) {
     const displayImages = getSubmissionPages(sub);
 
     imagesList.innerHTML = displayImages.map((imgSrc, i) => `
-        <div style="text-align: center; margin-bottom: 14px;">
-            <span style="font-weight: 600; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px;">পৃষ্ঠা ${i+1}:</span>
-            <img src="${imgSrc}" class="checked-khata-img" alt="পৃষ্ঠা ${i+1}" onerror="this.src='${SAMPLE_KHATA_IMAGE}'">
+        <div class="checked-khata-card">
+            <div class="checked-khata-card-header">
+                <span class="page-badge"><i class="fa-solid fa-file-lines"></i> পৃষ্ঠা ${i+1} / ${displayImages.length}</span>
+                <div class="page-actions">
+                    <button type="button" class="btn btn-sm btn-outline" style="font-size: 0.8rem; padding: 4px 10px; border-color: #3b82f6; color: #2563eb;" onclick="openKhataImageZoom('${imgSrc}', ${i+1})">
+                        <i class="fa-solid fa-magnifying-glass-plus"></i> বড় করে দেখুন (HD Zoom)
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline" style="font-size: 0.8rem; padding: 4px 8px;" onclick="downloadSinglePage('${imgSrc}', ${i+1})" title="এই পৃষ্ঠাটি ডাউনলোড করুন">
+                        <i class="fa-solid fa-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="checked-khata-img-wrapper" onclick="openKhataImageZoom('${imgSrc}', ${i+1})" title="বড় করে HD রেজোলিউশনে দেখতে ক্লিক করুন">
+                <img src="${imgSrc}" class="checked-khata-img" alt="পৃষ্ঠা ${i+1}" onerror="this.src='${SAMPLE_KHATA_IMAGE}'" loading="lazy">
+                <div class="khata-zoom-hint"><i class="fa-solid fa-expand"></i> টাচ করে বড় দেখুন</div>
+            </div>
         </div>
     `).join('');
 
@@ -2822,13 +2932,119 @@ function viewEvaluatedKhata(submissionId) {
     openModal("viewEvaluatedKhataModal");
 }
 
+/**
+ * HD Lightbox Image Zoom Engine
+ */
+window.khataLightboxState = {
+    zoom: 1.0,
+    currentImgSrc: "",
+    currentPageNum: 1
+};
+
+function openKhataImageZoom(imgSrc, pageNum = 1) {
+    if (!imgSrc) return;
+    window.khataLightboxState.zoom = 1.0;
+    window.khataLightboxState.currentImgSrc = imgSrc;
+    window.khataLightboxState.currentPageNum = pageNum;
+
+    const modal = document.getElementById("khataImageLightboxModal");
+    const img = document.getElementById("khataLightboxImg");
+    const indicator = document.getElementById("lightboxPageIndicator");
+
+    if (img) {
+        img.src = imgSrc;
+        img.style.transform = `scale(1)`;
+    }
+    if (indicator) {
+        indicator.innerHTML = `<i class="fa-solid fa-file-image"></i> <span>পৃষ্ঠা ${pageNum} (আল্ট্রা HD ভিউ)</span>`;
+    }
+    if (modal) {
+        modal.style.display = "flex";
+        document.body.style.overflow = "hidden";
+    }
+}
+
+function zoomLightboxImage(delta) {
+    let nextZoom = Math.round((window.khataLightboxState.zoom + delta) * 100) / 100;
+    nextZoom = Math.max(0.5, Math.min(3.5, nextZoom));
+    window.khataLightboxState.zoom = nextZoom;
+
+    const img = document.getElementById("khataLightboxImg");
+    if (img) {
+        img.style.transform = `scale(${nextZoom})`;
+    }
+    showToast(`জুম: ${Math.round(nextZoom * 100)}%`, "info");
+}
+
+function resetLightboxZoom() {
+    window.khataLightboxState.zoom = 1.0;
+    const img = document.getElementById("khataLightboxImg");
+    if (img) {
+        img.style.transform = `scale(1)`;
+    }
+}
+
+function downloadCurrentLightboxImage() {
+    if (window.khataLightboxState.currentImgSrc) {
+        downloadSinglePage(window.khataLightboxState.currentImgSrc, window.khataLightboxState.currentPageNum);
+    }
+}
+
+function closeKhataImageZoom() {
+    const modal = document.getElementById("khataImageLightboxModal");
+    if (modal) {
+        modal.style.display = "none";
+        document.body.style.overflow = "";
+    }
+}
+
+function handleLightboxBackdropClick(e) {
+    if (e.target && (e.target.id === "khataImageLightboxModal" || e.target.classList.contains("khata-lightbox-viewport"))) {
+        closeKhataImageZoom();
+    }
+}
+
+function downloadSinglePage(imgSrc, pageNum = 1) {
+    if (!imgSrc) return;
+    const link = document.createElement("a");
+    const title = (window.currentViewedKhataSub && window.currentViewedKhataSub.assignmentTitle)
+        ? window.currentViewedKhataSub.assignmentTitle.replace(/[^a-zA-Z0-9\u0980-\u09FF_-]/g, '_')
+        : 'evaluated-khata';
+    link.download = `${title}_page_${pageNum}.jpg`;
+    link.href = imgSrc;
+    link.click();
+    showToast(`পৃষ্ঠা ${pageNum} ডাউনলোড সম্পন্ন!`, "success");
+}
+
 function downloadEvaluatedKhata() {
-    if (window.currentViewedKhataImage) {
-        const link = document.createElement("a");
-        link.download = `evaluated-khata-${Date.now()}.jpg`;
-        link.href = window.currentViewedKhataImage;
-        link.click();
-        showToast("খাতা ডাউনলোড হচ্ছে...", "info");
+    if (!window.currentViewedKhataSub) {
+        if (window.currentViewedKhataImage) {
+            downloadSinglePage(window.currentViewedKhataImage, 1);
+        }
+        return;
+    }
+    const sub = window.currentViewedKhataSub;
+    const pages = getSubmissionPages(sub);
+    if (!pages || pages.length === 0) {
+        showToast("ডাউনলোড করার মত খাতার ছবি পাওয়া যায়নি।", "warning");
+        return;
+    }
+    if (pages.length === 1) {
+        downloadSinglePage(pages[0], 1);
+        return;
+    }
+    showToast(`মোট ${pages.length}টি পৃষ্ঠা ডাউনলোড হচ্ছে...`, "info");
+    pages.forEach((imgSrc, idx) => {
+        setTimeout(() => {
+            downloadSinglePage(imgSrc, idx + 1);
+        }, idx * 400);
+    });
+}
+
+function scrollEvaluatedKhataTop() {
+    const body = document.querySelector("#viewEvaluatedKhataModal .evaluated-view-body");
+    if (body) {
+        body.scrollTo({ top: 0, behavior: "smooth" });
     }
 }
 
@@ -2903,7 +3119,7 @@ function updateNotificationsUI() {
             return !n.studentId || n.teacherTarget || n.targetRole === 'teacher';
         }
         // For student
-        if (n.studentId) return n.studentId === state.currentUser.id || n.studentId === state.currentUser.phone;
+        if (n.studentId) return isStudentMatch(n, state.currentUser);
         if (n.targetClass) return n.targetClass === 'All' || n.targetClass === state.currentUser.class;
         return true;
     });
@@ -3486,7 +3702,7 @@ function sendReportCardWhatsApp() {
         return;
     }
 
-    const studentSubs = state.submissions.filter(s => s.studentId === student.id);
+    const studentSubs = state.submissions.filter(s => isStudentMatch(s, student));
     const checkedSubs = studentSubs.filter(s => s.status === 'checked');
     const checkedCount = checkedSubs.length;
 
@@ -3576,7 +3792,7 @@ function openStudentReportCardModal(studentId) {
     }
 
     // Filter submissions for this student
-    const studentSubs = state.submissions.filter(s => s.studentId === student.id);
+    const studentSubs = state.submissions.filter(s => isStudentMatch(s, student));
     const checkedSubs = studentSubs.filter(s => s.status === 'checked');
     const checkedCount = checkedSubs.length;
 
@@ -4695,19 +4911,8 @@ function renderStudentClassLogs() {
     // Strict individual isolation: Only show logs meant specifically for this student
     const myLogs = state.classLogs.filter(l => {
         if (!l) return false;
-        // Match by studentId
-        if (l.studentId && (l.studentId === student.id || l.studentId === student.phone)) {
-            return true;
-        }
-        // Match by studentPhone
-        if (l.studentPhone && (l.studentPhone === student.phone || l.studentPhone === student.id)) {
-            return true;
-        }
-        // If explicitly set for ALL students in a group batch
-        if (l.studentId === "ALL") {
-            return true;
-        }
-        return false;
+        if (l.studentId === "ALL") return true;
+        return isStudentMatch(l, student);
     });
 
     // Sort descending by date
@@ -4902,7 +5107,7 @@ function renderStudentDoubts() {
     const student = state.currentUser;
     if (!student) return;
 
-    const myDoubts = (state.doubts || []).filter(d => d.studentId === student.id);
+    const myDoubts = (state.doubts || []).filter(d => isStudentMatch(d, student));
     const pendingCount = myDoubts.filter(d => d.status === 'pending').length;
     const badge = document.getElementById("studentPendingDoubtsCount");
     if (badge) badge.textContent = pendingCount;
@@ -5577,7 +5782,7 @@ function renderStudentPerformanceChart(student, checkedSubs) {
 
     if (!student) student = state.currentUser;
     if (!checkedSubs) {
-        checkedSubs = (state.submissions || []).filter(s => s.studentId === student?.id && s.status === 'checked');
+        checkedSubs = (state.submissions || []).filter(s => isStudentMatch(s, student) && s.status === 'checked');
     }
 
     // Sort chronologically (oldest to newest)

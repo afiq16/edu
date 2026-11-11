@@ -95,8 +95,10 @@ class KhataCanvasEvaluator {
             this.bgImage.onload = () => {
                 this.isImageLoaded = true;
 
-                // Max canvas dimensions based on viewport
-                const maxWidth = 900;
+                // Max canvas dimensions based on crisp Full HD resolution
+                // Keep internal canvas resolution high (up to 1100px) so handwritten math & red pen strokes are crystal clear!
+                // CSS max-width: 100% handles visual scaling smoothly on any mobile screen.
+                const maxWidth = 1100;
                 let width = this.bgImage.naturalWidth || 800;
                 let height = this.bgImage.naturalHeight || 1000;
 
@@ -106,18 +108,15 @@ class KhataCanvasEvaluator {
                     height = height * ratio;
                 }
 
-                // If on mobile, scale to fit width nicely
-                if (window.innerWidth < 768) {
-                    const mobileMax = window.innerWidth - 30;
-                    if (width > mobileMax) {
-                        const ratio = mobileMax / width;
-                        width = mobileMax;
-                        height = height * ratio;
-                    }
+                // Cap max height to maintain aspect ratio and prevent extreme memory usage
+                const maxHeight = Math.round(maxWidth * 1.6);
+                if (height > maxHeight) {
+                    width = Math.round((width * maxHeight) / height);
+                    height = maxHeight;
                 }
 
-                this.canvas.width = width;
-                this.canvas.height = height;
+                this.canvas.width = Math.round(width);
+                this.canvas.height = Math.round(height);
 
                 // Render background image
                 this.redrawBaseImage();
@@ -169,7 +168,10 @@ class KhataCanvasEvaluator {
 
     redrawBaseImage() {
         if (!this.isImageLoaded) return;
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.imageSmoothingEnabled = true;
+        this.ctx.imageSmoothingQuality = 'high';
         this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height);
     }
 
@@ -406,16 +408,22 @@ class KhataCanvasEvaluator {
     }
 
     /**
-     * Export final evaluated image as Base64 data URL with automatic lightweight compression
+     * Export final evaluated image as Base64 data URL with crystal clear HD quality
+     * Ensures red pen marks, math equations, and handwriting stay razor sharp.
      */
-    exportEvaluatedImage(format = 'image/jpeg', quality = 0.65) {
+    exportEvaluatedImage(format = 'image/jpeg', quality = 0.74) {
         try {
-            const maxWidth = 800;
+            const maxWidth = 1080;
+            const maxHeight = 1600;
             let w = this.canvas.width;
             let h = this.canvas.height;
             if (w > maxWidth) {
                 h = Math.round((h * maxWidth) / w);
                 w = maxWidth;
+            }
+            if (h > maxHeight) {
+                w = Math.round((w * maxHeight) / h);
+                h = maxHeight;
             }
             const tempCanvas = document.createElement("canvas");
             tempCanvas.width = w;
@@ -423,6 +431,8 @@ class KhataCanvasEvaluator {
             const tempCtx = tempCanvas.getContext("2d");
             tempCtx.fillStyle = "#ffffff";
             tempCtx.fillRect(0, 0, w, h);
+            tempCtx.imageSmoothingEnabled = true;
+            tempCtx.imageSmoothingQuality = "high";
             tempCtx.drawImage(this.canvas, 0, 0, w, h);
             return tempCanvas.toDataURL(format, quality);
         } catch (err) {
