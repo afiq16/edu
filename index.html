@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Toastify for sleek notifications -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.1">
     <!-- Immediate session restore anti-flicker protection -->
     <script>
         (function() {
@@ -23,6 +23,67 @@
                     document.documentElement.classList.add("session-restoring");
                 }
             } catch(e) {}
+        })();
+    </script>
+    <!-- EduCheck Global Console Error & Debugging Interceptor -->
+    <script>
+        (function() {
+            window.appErrorLog = window.appErrorLog || [];
+
+            function logEduCheckConsoleError(type, message, source, lineno, colno, errorObj) {
+                var timestamp = new Date().toLocaleTimeString();
+                var errDetail = {
+                    type: type,
+                    message: message || (errorObj ? errorObj.message : "Unspecified Error"),
+                    source: source || window.location.href,
+                    line: lineno || 0,
+                    column: colno || 0,
+                    stack: errorObj && errorObj.stack ? errorObj.stack : (new Error().stack || ""),
+                    timestamp: timestamp
+                };
+
+                window.appErrorLog.unshift(errDetail);
+                if (window.appErrorLog.length > 50) window.appErrorLog.pop();
+
+                console.group("%c🚨 [EduCheck Full Console Error] " + type + " @ " + timestamp, "background: #ef4444; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px;");
+                console.error("📌 Error Message:", errDetail.message);
+                if (errDetail.source) console.log("📁 File/Location:", errDetail.source + (errDetail.line ? ":" + errDetail.line + ":" + errDetail.column : ""));
+                if (errDetail.stack) console.log("📚 Stack Trace:\n" + errDetail.stack);
+                if (errorObj) console.log("🔍 Error Detail Object:", errorObj);
+                console.groupEnd();
+            }
+
+            // 1. Synchronous Runtime JS Errors
+            window.onerror = function(message, source, lineno, colno, error) {
+                logEduCheckConsoleError("Runtime JS Error", message, source, lineno, colno, error);
+                return false;
+            };
+
+            // 2. Asynchronous Promise Rejections (Firebase, Async/Await, Network)
+            window.addEventListener("unhandledrejection", function(event) {
+                var reason = event.reason;
+                var msg = reason ? (reason.message || reason) : "Unhandled Async Promise Rejection";
+                var err = (reason instanceof Error) ? reason : new Error(String(msg));
+                logEduCheckConsoleError("Async Promise Rejection", msg, null, 0, 0, err);
+            });
+
+            // 3. Resource / Asset Loading Errors
+            window.addEventListener("error", function(event) {
+                if (event.target && (event.target.tagName === "IMG" || event.target.tagName === "SCRIPT" || event.target.tagName === "LINK")) {
+                    var rawAttr = event.target.getAttribute ? (event.target.getAttribute("src") || event.target.getAttribute("href")) : "";
+                    if (!rawAttr || rawAttr === "" || rawAttr === "#" || rawAttr.startsWith("data:image/svg+xml")) {
+                        return; // Ignore empty or unpopulated image placeholders
+                    }
+                    var src = event.target.src || event.target.href || "Resource URL unavailable";
+                    logEduCheckConsoleError("Resource Loading Error", "Failed to load " + event.target.tagName.toLowerCase() + " asset", src, 0, 0, null);
+                }
+            }, true);
+
+            // Expose helper to inspect errors in DevTools Console
+            window.getAppConsoleErrors = function() {
+                console.table(window.appErrorLog);
+                return window.appErrorLog;
+            };
         })();
     </script>
 </head>
@@ -401,7 +462,7 @@
                     <i class="fa-solid fa-list-check"></i> HW ও পরীক্ষার সূচি
                 </button>
                 <button class="view-tab-btn" onclick="switchTeacherTab('attendance')" id="tabTeacherAttendance">
-                    <i class="fa-solid fa-calendar-check"></i> দৈনিক উপস্থিতি
+                    <i class="fa-solid fa-calendar-days"></i> পড়ানোর দিনলিপি ও উপস্থিতি
                 </button>
                 <button class="view-tab-btn" onclick="switchTeacherTab('doubts')" id="tabTeacherDoubts">
                     <i class="fa-solid fa-circle-question"></i> ডাউট কর্নার
@@ -472,30 +533,108 @@
                 </div>
             </div>
 
-            <!-- TEACHER TAB 4: ATTENDANCE MANAGEMENT -->
+            <!-- TEACHER TAB 4: TEACHING LOGS & ATTENDANCE MANAGEMENT -->
             <div class="teacher-tab-pane" id="paneTeacherAttendance" style="display: none;">
-                <div class="attendance-header-card">
-                    <div class="attendance-date-picker">
-                        <label for="attendanceDatePicker"><i class="fa-solid fa-calendar-day" style="color: var(--primary);"></i> তারিখ নির্বাচন:</label>
-                        <input type="date" id="attendanceDatePicker" onchange="loadAttendanceForSelectedDate()">
-                    </div>
-                    <div class="att-stat-pills">
-                        <span class="att-pill total"><i class="fa-solid fa-users"></i> মোট: <b id="attStatTotal">0</b></span>
-                        <span class="att-pill present"><i class="fa-solid fa-check"></i> উপস্থিত: <b id="attStatPresent">0</b></span>
-                        <span class="att-pill absent"><i class="fa-solid fa-xmark"></i> অনুপস্থিত: <b id="attStatAbsent">0</b></span>
-                        <span class="att-pill late"><i class="fa-solid fa-clock"></i> বিলম্ব: <b id="attStatLate">0</b></span>
-                    </div>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button class="btn btn-outline" onclick="markAllStudentsPresent()" style="font-size: 0.85rem;">
-                            <i class="fa-solid fa-check-double"></i> সকলকে উপস্থিত করুন
+                <!-- Sub-view Navigation Toggle -->
+                <div style="display: flex; gap: 10px; margin-bottom: 1.25rem; flex-wrap: wrap;">
+                    <button class="btn btn-primary" id="subTabTeacherClassLogs" onclick="switchTeacherAttendanceSubView('classLogs')">
+                        <i class="fa-solid fa-calendar-days"></i> 📅 পড়ানোর দিনলিপি (আমি কবে কবে পড়িয়েছি)
+                    </button>
+                    <button class="btn btn-outline" id="subTabTeacherStudentAtt" onclick="switchTeacherAttendanceSubView('studentAtt')">
+                        <i class="fa-solid fa-user-check"></i> 📋 শিক্ষার্থীদের উপস্থিতি রেজিস্টার
+                    </button>
+                </div>
+
+                <!-- SUB-VIEW 1: TEACHING LOGS (DEFAULT) -->
+                <div id="teacherClassLogsSubView">
+                    <!-- Section Intro with Action Button -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 12px; background: var(--bg-surface); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border);">
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-calendar-check" style="color: var(--primary);"></i> আমার পড়ানোর দিনলিপি ও টিউশন খাতা
+                            </h3>
+                            <p style="margin: 4px 0 0 0; font-size: 0.88rem; color: var(--text-muted);">
+                                আপনি কোন কোন তারিখে পড়াতে গিয়েছেন, কী পড়িয়েছেন এবং পরবর্তী কী হোমওয়ার্ক দিয়েছেন তার সম্পূর্ণ ডেট-বাই-ডেট তালিকা
+                            </p>
+                        </div>
+                        <button class="btn btn-primary" onclick="openAddClassLogModal()" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700;">
+                            <i class="fa-solid fa-calendar-plus"></i> + নতুন পড়ানোর দিন / ক্লাস এন্ট্রি
                         </button>
-                        <button class="btn btn-primary" onclick="saveDailyAttendance()" style="font-size: 0.85rem;">
-                            <i class="fa-solid fa-cloud-arrow-up"></i> উপস্থিতি সংরক্ষণ
-                        </button>
+                    </div>
+
+                    <!-- Summary Stat Cards -->
+                    <div class="stats-grid" style="margin-bottom: 1.25rem;">
+                        <div class="stat-card" style="--card-accent: #3b82f6;">
+                            <div class="stat-icon"><i class="fa-solid fa-calendar-day"></i></div>
+                            <div class="stat-data">
+                                <span class="stat-value" id="teacherLogsThisMonthCount">0</span>
+                                <span class="stat-label">চলতি মাসে পড়ানো হয়েছে (দিন)</span>
+                            </div>
+                        </div>
+                        <div class="stat-card" style="--card-accent: #10b981;">
+                            <div class="stat-icon"><i class="fa-solid fa-book-open-reader"></i></div>
+                            <div class="stat-data">
+                                <span class="stat-value" id="teacherLogsTotalCount">0</span>
+                                <span class="stat-label">সর্বমোট পড়ানোর দিন</span>
+                            </div>
+                        </div>
+                        <div class="stat-card" style="--card-accent: #8b5cf6;">
+                            <div class="stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                            <div class="stat-data">
+                                <span class="stat-value" id="teacherLogsLastDate" style="font-size: 1.05rem; line-height: 1.3;">-</span>
+                                <span class="stat-label">সর্বশেষ পড়ানোর তারিখ</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filter Controls -->
+                    <div class="filter-controls-bar" style="margin-bottom: 1.25rem;">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input type="text" id="teacherLogSearchInput" placeholder="বিষয়, টপিক বা হোমওয়ার্ক দিয়ে খুঁজুন..." oninput="renderTeacherClassLogs()">
+                        </div>
+                        <div class="filter-dropdowns">
+                            <select id="teacherLogStudentFilter" onchange="renderTeacherClassLogs()">
+                                <option value="all">সকল শিক্ষার্থী / ব্যাচ</option>
+                            </select>
+                            <select id="teacherLogMonthFilter" onchange="renderTeacherClassLogs()">
+                                <option value="all">সকল মাস</option>
+                                <option value="this_month" selected>চলতি মাস</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Teaching Logs Grid / Timeline Cards -->
+                    <div id="teacherClassLogsList" style="display: grid; gap: 14px;">
+                        <!-- Dynamic log cards rendered by JS -->
                     </div>
                 </div>
-                <div class="attendance-grid" id="teacherAttendanceGrid">
-                    <!-- Dynamic student attendance cards -->
+
+                <!-- SUB-VIEW 2: DAILY ATTENDANCE REGISTER -->
+                <div id="teacherStudentAttSubView" style="display: none;">
+                    <div class="attendance-header-card">
+                        <div class="attendance-date-picker">
+                            <label for="attendanceDatePicker"><i class="fa-solid fa-calendar-day" style="color: var(--primary);"></i> তারিখ নির্বাচন:</label>
+                            <input type="date" id="attendanceDatePicker" onchange="loadAttendanceForSelectedDate()">
+                        </div>
+                        <div class="att-stat-pills">
+                            <span class="att-pill total"><i class="fa-solid fa-users"></i> মোট: <b id="attStatTotal">0</b></span>
+                            <span class="att-pill present"><i class="fa-solid fa-check"></i> উপস্থিত: <b id="attStatPresent">0</b></span>
+                            <span class="att-pill absent"><i class="fa-solid fa-xmark"></i> অনুপস্থিত: <b id="attStatAbsent">0</b></span>
+                            <span class="att-pill late"><i class="fa-solid fa-clock"></i> বিলম্ব: <b id="attStatLate">0</b></span>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="btn btn-outline" onclick="markAllStudentsPresent()" style="font-size: 0.85rem;">
+                                <i class="fa-solid fa-check-double"></i> সকলকে উপস্থিত করুন
+                            </button>
+                            <button class="btn btn-primary" onclick="saveDailyAttendance()" style="font-size: 0.85rem;">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> উপস্থিতি সংরক্ষণ
+                            </button>
+                        </div>
+                    </div>
+                    <div class="attendance-grid" id="teacherAttendanceGrid">
+                        <!-- Dynamic student attendance cards -->
+                    </div>
                 </div>
             </div>
 
@@ -563,7 +702,7 @@
             <div class="student-profile-banner">
                 <div class="student-profile-main">
                     <div class="student-avatar-container">
-                        <img src="" id="studentProfileImg" alt="Student Pic" class="student-avatar-lg">
+                        <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Student" id="studentProfileImg" alt="Student Pic" class="student-avatar-lg">
                         <span class="online-indicator"></span>
                     </div>
                     <div class="student-details">
@@ -629,6 +768,10 @@
                     <i class="fa-solid fa-clock-rotate-left"></i> আমার খাতার রেকর্ড
                     <span class="count-badge" id="studentCheckedCount">0</span>
                 </button>
+                <button class="view-tab-btn" onclick="switchStudentTab('attendance')" id="tabStudentAttendance">
+                    <i class="fa-solid fa-calendar-days"></i> পড়ানোর দিনলিপি
+                    <span class="count-badge" id="studentAttPercentageBadge">০ দিন</span>
+                </button>
                 <button class="view-tab-btn" onclick="switchStudentTab('analytics')" id="tabStudentAnalytics">
                     <i class="fa-solid fa-chart-line"></i> পারফরম্যান্স গ্রাফ
                 </button>
@@ -678,6 +821,98 @@
                 <div class="leaderboard-container" id="studentLeaderboardList">
                     <!-- Rendered dynamically -->
                 </div>
+            </div>
+
+            <!-- STUDENT TAB: DAY-BY-DAY TEACHING LOG & ATTENDANCE -->
+            <div class="student-tab-pane" id="paneStudentAttendance" style="display: none;">
+                <!-- Header Card -->
+                <div class="section-intro" style="background: var(--bg-surface); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.25rem;">
+                    <h3 style="margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-calendar-days" style="color: var(--primary);"></i> শিক্ষক কোন কোন দিন পড়িয়েছেন (পড়ানোর দিনলিপি)
+                    </h3>
+                    <p style="margin: 4px 0 0 0; font-size: 0.88rem; color: var(--text-muted);">
+                        শিক্ষক আফিক আপনার ক্লাসে কোন কোন তারিখে পড়াতে এসেছেন, কী কী পড়িয়েছেন এবং পরবর্তী কী বাড়ির কাজ দিয়েছেন তার সম্পূর্ণ তারিখ অনুযায়ী তালিকা
+                    </p>
+                </div>
+
+                <!-- Teaching Days Summary Cards -->
+                <div class="stats-grid" style="margin-bottom: 1.25rem;">
+                    <div class="stat-card" style="--card-accent: #3b82f6;">
+                        <div class="stat-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="studentLogsThisMonthCount">0</span>
+                            <span class="stat-label">এই মাসে শিক্ষক পড়িয়েছেন (দিন)</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="--card-accent: #10b981;">
+                        <div class="stat-icon"><i class="fa-solid fa-book-bookmark"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="studentLogsTotalCount">0</span>
+                            <span class="stat-label">সর্বমোট পড়ানোর দিন</span>
+                        </div>
+                    </div>
+                    <div class="stat-card" style="--card-accent: #8b5cf6;">
+                        <div class="stat-icon"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-value" id="studentLogsLastDate" style="font-size: 1.05rem; line-height: 1.3;">-</span>
+                            <span class="stat-label">সর্বশেষ ক্লাসের তারিখ</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Controls & Date-by-date Teaching Log list -->
+                <div class="attendance-log-card" style="background: var(--bg-surface); padding: 1.25rem; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 10px;">
+                        <h4 style="margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-list-check" style="color: var(--primary);"></i> তারিখ অনুযায়ী পড়ানোর দিনলিপি
+                        </h4>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <input type="text" id="studentClassLogSearch" placeholder="বিষয় বা পাঠের নাম দিয়ে খুঁজুন..." oninput="renderStudentClassLogs()" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.85rem; background: var(--bg-surface-secondary); color: var(--text-main); min-width: 180px;">
+                            <select id="studentClassLogMonthFilter" onchange="renderStudentClassLogs()" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 0.85rem; background: var(--bg-surface-secondary); color: var(--text-main);">
+                                <option value="all">সকল মাসের রেকর্ড</option>
+                                <option value="this_month" selected>চলতি মাস</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Day-by-Day Teaching Logs Grid -->
+                    <div id="studentClassLogsTimeline" style="display: grid; gap: 12px;">
+                        <!-- Dynamic teaching day cards rendered by JS -->
+                    </div>
+                </div>
+
+                <!-- Collapsible: উপস্থিতির সারাংশ (Student Attendance Records) -->
+                <details style="background: var(--bg-surface); padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid var(--border);">
+                    <summary style="font-weight: 700; cursor: pointer; color: var(--text-main); display: flex; align-items: center; gap: 8px; user-select: none;">
+                        <i class="fa-solid fa-clipboard-user" style="color: var(--primary);"></i> উপস্থিতির রেকর্ড ও বিশ্লেষণ (যদি দেখতে চান)
+                    </summary>
+                    <div style="margin-top: 1rem;">
+                        <div class="stats-grid" style="margin-bottom: 1rem;">
+                            <div class="stat-card" style="--card-accent: #10b981;">
+                                <div class="stat-icon"><i class="fa-solid fa-user-check"></i></div>
+                                <div class="stat-data">
+                                    <span class="stat-value" id="studentAttSummaryPresent">0</span>
+                                    <span class="stat-label">উপস্থিতি দিন</span>
+                                </div>
+                            </div>
+                            <div class="stat-card" style="--card-accent: #ef4444;">
+                                <div class="stat-icon"><i class="fa-solid fa-user-xmark"></i></div>
+                                <div class="stat-data">
+                                    <span class="stat-value" id="studentAttSummaryAbsent">0</span>
+                                    <span class="stat-label">অনুপস্থিত দিন</span>
+                                </div>
+                            </div>
+                            <div class="stat-card" style="--card-accent: #f59e0b;">
+                                <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+                                <div class="stat-data">
+                                    <span class="stat-value" id="studentAttSummaryLate">0</span>
+                                    <span class="stat-label">বিলম্ব দিন</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="student-att-timeline" id="studentAttTimelineGrid"></div>
+                    </div>
+                </details>
             </div>
 
             <!-- STUDENT TAB 4: PERFORMANCE ANALYTICS CHART -->
@@ -944,6 +1179,73 @@
         </div>
     </div>
 
+    <!-- ================= MODAL: ADD / EDIT CLASS LOG (পড়ানোর দিনলিপি) ================= -->
+    <div class="modal-overlay" id="addClassLogModal">
+        <div class="modal-card" style="max-width: 650px;">
+            <div class="modal-header">
+                <div>
+                    <h3 id="classLogModalTitle"><i class="fa-solid fa-calendar-plus" style="color: var(--primary);"></i> নতুন পড়ানোর দিন / ক্লাস এন্ট্রি</h3>
+                    <small class="text-muted">আপনি কবে পড়াতে গিয়েছেন, কী পড়িয়েছেন এবং কী হোমওয়ার্ক দিয়েছেন তা সংরক্ষণ করুন</small>
+                </div>
+                <button class="modal-close-btn" onclick="closeModal('addClassLogModal')">&times;</button>
+            </div>
+            <form id="addClassLogForm" onsubmit="handleSaveClassLog(event)">
+                <input type="hidden" id="classLogEditId" value="">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-calendar-day"></i> পড়ানোর তারিখ *</label>
+                            <input type="date" id="classLogDate" class="form-control" required>
+                        </div>
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-user-graduate"></i> নির্দিষ্ট শিক্ষার্থী নির্বাচন করুন *</label>
+                            <select id="classLogStudentSelect" class="form-control" required>
+                                <option value="" disabled selected>-- শিক্ষার্থী নির্বাচন করুন * --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-book"></i> বিষয় *</label>
+                            <input type="text" id="classLogSubject" class="form-control" placeholder="যেমন: সাধারণ গণিত / পদার্থবিজ্ঞান" required>
+                        </div>
+                        <div class="form-group flex-1">
+                            <label><i class="fa-solid fa-clock"></i> সময়কাল ও ক্লাসের সময়</label>
+                            <input type="text" id="classLogDuration" class="form-control" placeholder="যেমন: ১ ঘন্টা ৩০ মিনিট (বিকাল ৪:৩০ - ৬:০০)">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-chalkboard-user"></i> আজ ক্লাসে কী কী পড়ানো হয়েছে (পাঠের বিস্তারিত) *</label>
+                        <textarea id="classLogTopics" class="form-control" rows="3" placeholder="আজ কোন অধ্যায়, অনুচ্ছেদ, সূত্র বা গাণিতিক সমস্যা পড়িয়েছেন বিস্তারিত লিখুন..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-house-laptop"></i> পরবর্তী দিনের পড়া ও বাড়ির কাজ (Home Work)</label>
+                        <textarea id="classLogHomework" class="form-control" rows="2" placeholder="পরবর্তী ক্লাসের জন্য কী কী পড়া বা বাড়ির কাজ দেওয়া হয়েছে..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-comment-dots"></i> শিক্ষকের পর্যবেক্ষণ / মন্তব্য (ঐচ্ছিক)</label>
+                        <input type="text" id="classLogNotes" class="form-control" placeholder="যেমন: ক্লাসে মনোযোগ ভালো ছিল, আগামী দিন মৌখিক টেস্ট নেওয়া হবে">
+                    </div>
+
+                    <div style="background: rgba(16, 185, 129, 0.08); border-left: 4px solid #10b981; padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-cloud-arrow-up" style="color: #10b981; font-size: 1.1rem;"></i>
+                        <span>সংরক্ষণ করলে ফায়ারবেস ক্লাউডের মাধ্যমে শিক্ষার্থীর অ্যাপ ও ফোনে তাৎক্ষণিক নোটিফিকেশন যাবে এবং দিনলিপিতে সেভ হবে।</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addClassLogModal')">বাতিল</button>
+                    <button type="submit" class="btn btn-primary" id="saveClassLogSubmitBtn">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> দিনলিপি সংরক্ষণ করুন
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 
     <!-- ================= MODAL C: SUBMIT HOMEWORK / KHATA (STUDENT) ================= -->
     <div class="modal-overlay" id="submitHomeworkModal">
@@ -965,26 +1267,38 @@
                     <!-- Upload zone with mobile camera & gallery options -->
                     <div class="form-group">
                         <label><i class="fa-solid fa-images"></i> খাতার স্পষ্ট ছবি তুলুন বা গ্যালারি থেকে সিলেক্ট করুন *</label>
-                        <div class="khata-upload-dropzone" id="khataDropZone">
+                        <div class="khata-upload-dropzone" id="khataDropZone" onclick="document.getElementById('khataGalleryInput').click()" style="cursor: pointer;">
                             <i class="fa-solid fa-camera-retro dropzone-icon"></i>
                             <div class="dropzone-text">
                                 <strong>ক্যামেরা চালু করুন অথবা ছবি আপলোড করুন</strong>
-                                <span>(একাধিক পৃষ্ঠার ছবি একসাথে সিলেক্ট করতে পারেন)</span>
+                                <span>(ক্যামেরা দিয়ে ছবি তুলতে বা গ্যালারি থেকে একাধিক পৃষ্ঠা সিলেক্ট করতে নিচের বাটনে চাপ দিন)</span>
                             </div>
-                            <div class="dropzone-actions">
-                                <label class="btn btn-primary btn-sm">
-                                    <i class="fa-solid fa-camera"></i> ক্যামেরা / ছবি নিন
-                                    <input type="file" id="khataImageFiles" accept="image/*" multiple capture="environment" style="display:none;" onchange="handleKhataImagesSelected(event)">
-                                </label>
+                            <div class="dropzone-actions" style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 6px;">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="event.stopPropagation(); document.getElementById('khataCameraInput').click();">
+                                    <i class="fa-solid fa-camera"></i> ক্যামেরা দিয়ে ছবি তুলুন
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="event.stopPropagation(); document.getElementById('khataGalleryInput').click();" style="background: white;">
+                                    <i class="fa-solid fa-images"></i> গ্যালারি / ফাইল থেকে নিন
+                                </button>
+                                <!-- Dedicated hidden file inputs -->
+                                <input type="file" id="khataCameraInput" accept="image/*" capture="environment" style="display:none;" onchange="handleKhataImagesSelected(event)">
+                                <input type="file" id="khataGalleryInput" accept="image/*" multiple style="display:none;" onchange="handleKhataImagesSelected(event)">
                             </div>
                         </div>
                     </div>
 
                     <!-- Selected Pages Preview Gallery -->
                     <div class="selected-pages-preview-wrapper" id="khataPagesPreviewWrapper" style="display: none;">
-                        <div class="preview-header-bar">
-                            <span><i class="fa-solid fa-layer-group"></i> নির্বাচিত পৃষ্ঠাসমূহ (<span id="pageCountBadge">0</span>)</span>
-                            <small>জমা দেওয়ার আগে চেক করে নিন</small>
+                        <div class="preview-header-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span><i class="fa-solid fa-layer-group"></i> নির্বাচিত পৃষ্ঠাসমূহ (<span id="pageCountBadge" style="font-weight: bold; color: var(--primary);">0 পৃষ্ঠা</span>)</span>
+                            <div style="display: flex; gap: 6px;">
+                                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('khataCameraInput').click()" style="padding: 3px 8px; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-camera"></i> ক্যামেরা
+                                </button>
+                                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('khataGalleryInput').click()" style="padding: 3px 8px; font-size: 0.75rem;">
+                                    <i class="fa-solid fa-plus"></i> আরও পৃষ্ঠা
+                                </button>
+                            </div>
                         </div>
                         <div class="pages-grid" id="khataPagesGrid">
                             <!-- Thumbnails added here -->
@@ -1017,7 +1331,7 @@
             <!-- Evaluator Top Header Bar -->
             <div class="evaluator-top-bar">
                 <div class="evaluator-student-info">
-                    <img src="" id="evalStudentAvatar" class="avatar-eval-sm">
+                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Student" id="evalStudentAvatar" class="avatar-eval-sm">
                     <div class="info-texts">
                         <h4 id="evalStudentName">শিক্ষার্থীর নাম</h4>
                         <span id="evalAssignmentTitle" class="eval-subtitle">হোমওয়ার্ক শিরোনাম • জমা দেওয়ার সময়: আজ ৯:১৫ PM</span>
@@ -1682,7 +1996,7 @@
                         <label><i class="fa-solid fa-image"></i> প্রশ্নের ছবি বা খাতার পাতার ছবি (ঐচ্ছিক)</label>
                         <input type="file" id="newDoubtFile" class="form-control" accept="image/*">
                         <div id="newDoubtPreviewContainer" style="display: none; margin-top: 8px;">
-                            <img id="newDoubtPreviewImg" src="" style="max-height: 140px; border-radius: 8px; border: 1px solid var(--border);">
+                            <img id="newDoubtPreviewImg" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'></svg>" style="max-height: 140px; border-radius: 8px; border: 1px solid var(--border);">
                         </div>
                     </div>
                 </div>
@@ -1714,7 +2028,7 @@
                     <h4 id="resolveDoubtTitle" style="font-size: 1rem; color: var(--text-main); margin-bottom: 4px;">--</h4>
                     <p id="resolveDoubtDesc" style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 8px;">--</p>
                     <div id="resolveDoubtAttachmentWrap" style="display: none;">
-                        <img id="resolveDoubtAttachment" src="" style="max-height: 180px; border-radius: 8px; cursor: pointer;" onclick="window.open(this.src, '_blank')">
+                        <img id="resolveDoubtAttachment" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='1' height='1'></svg>" style="max-height: 180px; border-radius: 8px; cursor: pointer;" onclick="window.open(this.src, '_blank')">
                     </div>
                 </div>
 
@@ -2216,6 +2530,10 @@
                 <i class="fa-solid fa-clock-rotate-left"></i>
                 <span>রেকর্ড</span>
             </button>
+            <button class="mobile-nav-item" id="mobNavStudentAttendance" onclick="switchStudentTab('attendance'); setActiveMobNav(this)">
+                <i class="fa-solid fa-calendar-days"></i>
+                <span>পড়ানোর খাতা</span>
+            </button>
             <button class="mobile-nav-item" id="mobNavStudentLeaderboard" onclick="switchStudentTab('leaderboard'); setActiveMobNav(this)">
                 <i class="fa-solid fa-trophy"></i>
                 <span>লিডারবোর্ড</span>
@@ -2263,11 +2581,11 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
     
     <!-- Application Scripts -->
-    <script src="js/firebase-config.js"></script>
-    <script src="js/free-storage.js"></script>
-    <script src="js/sms-service.js"></script>
-    <script src="js/canvas-evaluator.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/firebase-config.js?v=2.5"></script>
+    <script src="js/free-storage.js?v=2.5"></script>
+    <script src="js/sms-service.js?v=2.5"></script>
+    <script src="js/canvas-evaluator.js?v=2.5"></script>
+    <script src="js/app.js?v=2.5"></script>
 
 </body>
 </html>
