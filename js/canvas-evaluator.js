@@ -408,7 +408,7 @@ class KhataCanvasEvaluator {
     /**
      * Export final evaluated image as Base64 data URL with automatic lightweight compression
      */
-    exportEvaluatedImage(format = 'image/jpeg', quality = 0.72) {
+    exportEvaluatedImage(format = 'image/jpeg', quality = 0.65) {
         try {
             const maxWidth = 800;
             let w = this.canvas.width;

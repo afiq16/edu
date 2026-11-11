@@ -1,4 +1,4 @@
-﻿/**
+/**
  * EduCheck Main Application Controller
  * Handles State, Authentication, Real-time Khata Submissions, Canvas Grading, and Notification Triggers
  */
@@ -12,6 +12,7 @@ const state = {
     submissions: [],
     notifications: [],
     attendance: [],
+    classLogs: [],
     doubts: [],
     studyMaterials: [],
     notices: [],
@@ -33,6 +34,41 @@ const DEMO_STUDENTS = [];
 const DEMO_ASSIGNMENTS = [];
 const SAMPLE_KHATA_IMAGE = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='1000' viewBox='0 0 800 1000'><rect width='800' height='1000' fill='%23fafafa'/><line x1='60' y1='0' x2='60' y2='1000' stroke='%23fca5a5' stroke-width='2'/><line x1='0' y1='80' x2='800' y2='80' stroke='%23bae6fd' stroke-width='2'/><g stroke='%23e2e8f0' stroke-width='1'><line x1='60' y1='140' x2='760' y2='140'/><line x1='60' y1='200' x2='760' y2='200'/><line x1='60' y1='260' x2='760' y2='260'/><line x1='60' y1='320' x2='760' y2='320'/><line x1='60' y1='380' x2='760' y2='380'/><line x1='60' y1='440' x2='760' y2='440'/><line x1='60' y1='500' x2='760' y2='500'/><line x1='60' y1='560' x2='760' y2='560'/><line x1='60' y1='620' x2='760' y2='620'/><line x1='60' y1='680' x2='760' y2='680'/><line x1='60' y1='740' x2='760' y2='740'/><line x1='60' y1='800' x2='760' y2='800'/></g><text x='80' y='50' font-family='sans-serif' font-size='20' font-weight='bold' fill='%23334155'>হোমওয়ার্ক / পরীক্ষার খাতা</text></svg>";
 const DEMO_SUBMISSIONS = [];
+
+/**
+ * Global HTML Escape Utility to prevent XSS and ReferenceErrors
+ */
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
+/**
+ * Safely extract submission pages array with full backward compatibility
+ */
+function getSubmissionPages(sub) {
+    if (!sub) return [SAMPLE_KHATA_IMAGE];
+    let pages = [];
+    if (Array.isArray(sub.pages) && sub.pages.length > 0) {
+        pages = sub.pages.filter(Boolean);
+    } else if (Array.isArray(sub.evaluatedImages) && sub.evaluatedImages.length > 0) {
+        pages = sub.evaluatedImages.filter(Boolean);
+    } else if (Array.isArray(sub.images) && sub.images.length > 0) {
+        pages = sub.images.filter(Boolean);
+    } else if (typeof sub.pages === 'string' && sub.pages.trim()) {
+        pages = [sub.pages.trim()];
+    } else if (typeof sub.image === 'string' && sub.image.trim()) {
+        pages = [sub.image.trim()];
+    }
+    return pages.length > 0 ? pages : [SAMPLE_KHATA_IMAGE];
+}
+window.getSubmissionPages = getSubmissionPages;
 
 // ==========================================================================
 // INITIALIZATION
@@ -101,7 +137,7 @@ function setupRealtimeFirebaseListeners() {
                 }
 
                 if (state.currentUser?.role === 'teacher') {
-                    renderTeacherRoster();
+                    renderTeacherStudentsList();
                     renderTeacherDashboard();
                 } else if (state.currentUser?.role === 'student') {
                     renderStudentDashboard();
@@ -310,7 +346,33 @@ function setupRealtimeFirebaseListeners() {
                 updateNotificationsUI();
             }, err => console.warn("Notifications listener notice:", err));
 
-            console.log("📡 Real-time Cloud Firestore sync active across ALL collections (Students, HW, Khata, Attendance, Doubts, Notes, Notices)");
+            // 9. Listen for teacher class logs / teaching days in real-time
+            fbFirestore.collection("class_logs").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    if (!data || !data.id) return;
+                    const index = state.classLogs.findIndex(c => c.id === data.id);
+                    if (change.type === "added") {
+                        if (index === -1) state.classLogs.unshift(data);
+                        else state.classLogs[index] = data;
+                        window.dbStorage.setLocal("class_logs", data);
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.classLogs[index] = data;
+                        else state.classLogs.unshift(data);
+                        window.dbStorage.setLocal("class_logs", data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.classLogs.splice(index, 1);
+                        window.dbStorage.deleteLocal("class_logs", data.id);
+                    }
+                });
+                if (state.currentUser?.role === 'teacher') {
+                    renderTeacherClassLogs();
+                } else if (state.currentUser?.role === 'student') {
+                    renderStudentClassLogs();
+                }
+            }, err => console.warn("Class logs listener notice:", err));
+
+            console.log("📡 Real-time Cloud Firestore sync active across ALL collections (Students, HW, Khata, Attendance, Doubts, Notes, Notices, ClassLogs)");
         } catch (err) {
             console.warn("Real-time listener setup error:", err);
         }
@@ -342,7 +404,7 @@ function generateNextStudentId() {
  */
 async function initDatabase() {
     try {
-        const [students, assigns, subs, notifs, atts, doubts, materials, notices] = await Promise.all([
+        const [students, assigns, subs, notifs, atts, doubts, materials, notices, classLogs] = await Promise.all([
             window.dbStorage.getAll("students"),
             window.dbStorage.getAll("assignments"),
             window.dbStorage.getAll("submissions"),
@@ -350,7 +412,8 @@ async function initDatabase() {
             window.dbStorage.getAll("attendance"),
             window.dbStorage.getAll("doubts"),
             window.dbStorage.getAll("study_materials"),
-            window.dbStorage.getAll("notices")
+            window.dbStorage.getAll("notices"),
+            window.dbStorage.getAll("class_logs")
         ]);
 
         state.students = students || [];
@@ -361,7 +424,8 @@ async function initDatabase() {
         state.doubts = doubts || [];
         state.studyMaterials = materials || [];
         state.notices = notices || [];
-        console.log(`📊 Initial database loaded: ${state.students.length} students, ${state.assignments.length} assignments, ${state.submissions.length} submissions`);
+        state.classLogs = classLogs || [];
+        console.log(`📊 Initial database loaded: ${state.students.length} students, ${state.assignments.length} assignments, ${state.classLogs.length} class logs`);
     } catch (err) {
         console.error("Database initialization error:", err);
         state.students = [];
@@ -372,6 +436,7 @@ async function initDatabase() {
         state.doubts = [];
         state.studyMaterials = [];
         state.notices = [];
+        state.classLogs = [];
     }
 }
 
@@ -729,6 +794,7 @@ async function handleStudentSelfRegister(event) {
         loginAsStudent(newStudent);
         showToast(`🎉 স্বাগতম ${newStudent.name}! আপনার শিক্ষার্থী আইডি: ${newStudent.id}`, "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("নিবন্ধন ত্রুটি: " + err.message, "error");
     } finally {
         if (submitBtn) {
@@ -1100,6 +1166,7 @@ function switchTeacherTab(tabName) {
         document.getElementById("tabTeacherAttendance")?.classList.add("active");
         const pane = document.getElementById("paneTeacherAttendance");
         if (pane) pane.style.display = "block";
+        renderTeacherClassLogs();
         loadAttendanceForSelectedDate();
     } else if (tabName === 'doubts') {
         document.getElementById("tabTeacherDoubts")?.classList.add("active");
@@ -1137,6 +1204,7 @@ function renderTeacherDashboard() {
     document.getElementById("pendingSubCount").textContent = pendingKhata;
 
     renderTeacherSubmissions();
+    renderTeacherClassLogs();
     updateLiveNoticeAlert();
 }
 
@@ -1169,13 +1237,14 @@ function renderTeacherSubmissions() {
     grid.innerHTML = filtered.map(sub => {
         const isPending = sub.status === 'pending';
         const dateFormatted = formatBanglaDateTime(sub.submittedAt);
-        const thumbImg = (sub.pages && sub.pages.length > 0) ? sub.pages[0] : SAMPLE_KHATA_IMAGE;
+        const safePages = getSubmissionPages(sub);
+        const thumbImg = safePages[0];
         
         return `
             <div class="submission-card ${isPending ? 'status-pending' : 'status-checked'}">
                 <div class="sub-card-header">
                     <div class="sub-student-meta">
-                        <img src="${sub.studentAvatar}" class="sub-avatar" alt="${sub.studentName}">
+                        <img src="${sub.studentAvatar || 'https://api.dicebear.com/7.x/bottts/svg?seed=Student'}" class="sub-avatar" alt="${sub.studentName}" onerror="this.src='https://api.dicebear.com/7.x/bottts/svg?seed=Student'">
                         <div>
                             <div class="sub-student-name">${sub.studentName}</div>
                             <div class="sub-student-class">${sub.studentClass} • ID: ${sub.studentId}</div>
@@ -1193,12 +1262,12 @@ function renderTeacherSubmissions() {
                 <div class="sub-card-body">
                     <div class="sub-assignment-title">${sub.assignmentTitle}</div>
                     <div class="sub-time-meta">
-                        <i class="fa-regular fa-clock"></i> জমা: <strong>${dateFormatted}</strong>
+                        <i class="fa-regular fa-clock"></i> জমা: <strong>${dateFormatted}</strong> • <strong>${safePages.length} পৃষ্ঠা</strong>
                     </div>
 
                     <div class="sub-preview-thumbnails">
-                        ${sub.pages.map((p, i) => `
-                            <img src="${p}" class="sub-thumb" title="পৃষ্ঠা ${i+1}">
+                        ${safePages.map((p, i) => `
+                            <img src="${p}" class="sub-thumb" title="পৃষ্ঠা ${i+1} (ক্লিক করে বড় দেখুন)" onclick="openKhataEvaluator('${sub.id}')" style="cursor: pointer;" onerror="this.src='${SAMPLE_KHATA_IMAGE}'" alt="পৃষ্ঠা ${i+1}">
                         `).join('')}
                     </div>
 
@@ -1275,6 +1344,9 @@ function renderTeacherStudentsList() {
                 <div style="font-size: 0.75rem; color: #64748b; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 4px; flex-wrap: wrap;">
                     <span>আইডি: <strong>${s.id}</strong></span>
                     <div style="display: flex; gap: 4px;">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="filterTeacherClassLogsForStudent('${s.id}')" title="এই শিক্ষার্থীর পড়ানোর দিনলিপি দেখুন" style="padding: 2px 7px; font-size: 0.74rem; color: #8b5cf6; border-color: #ddd6fe;">
+                            <i class="fa-solid fa-calendar-check"></i> দিনলিপি
+                        </button>
                         <button type="button" class="btn btn-outline btn-sm" onclick="openStudentReportCardModal('${s.id}')" title="মার্কশিট ও প্রগ্রেস রিপোর্ট" style="padding: 2px 7px; font-size: 0.74rem;">
                             <i class="fa-solid fa-file-invoice"></i> রিপোর্ট
                         </button>
@@ -1287,6 +1359,23 @@ function renderTeacherStudentsList() {
         </div>
     `).join('');
 }
+
+function renderTeacherRoster() {
+    renderTeacherStudentsList();
+}
+window.renderTeacherRoster = renderTeacherRoster;
+window.renderTeacherStudentsList = renderTeacherStudentsList;
+
+function filterTeacherClassLogsForStudent(studentId) {
+    switchTeacherTab('attendance');
+    switchTeacherAttendanceSubView('classLogs');
+    const filter = document.getElementById("teacherLogStudentFilter");
+    if (filter) {
+        filter.value = studentId;
+    }
+    renderTeacherClassLogs();
+}
+window.filterTeacherClassLogsForStudent = filterTeacherClassLogsForStudent;
 
 function renderTeacherAssignments() {
     const grid = document.getElementById("teacherAssignmentsGrid");
@@ -1425,6 +1514,7 @@ async function handleSaveNewStudent(event) {
             showToast(`✅ শিক্ষার্থী ${name} (ID: ${newStudentId}) সফলভাবে যুক্ত হয়েছে!`, "success");
         }
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("সংরক্ষণ ত্রুটি: " + err.message, "error");
     } finally {
         if (saveBtn) {
@@ -1569,6 +1659,7 @@ async function handleSaveNewAssignment(event) {
         renderTeacherAssignments();
         showToast("হোমওয়ার্ক / পরীক্ষা সফলভাবে প্রকাশ করা হয়েছে!", "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("সমস্যা হয়েছে: " + err.message, "error");
     } finally {
         if (saveBtn) {
@@ -1585,16 +1676,19 @@ async function openKhataEvaluator(submissionId) {
     const sub = state.submissions.find(s => s.id === submissionId);
     if (!sub) return;
 
+    // Ensure pages is a clean, valid array from all possible formats
+    sub.pages = getSubmissionPages(sub);
+
     state.currentEvaluatingSubmission = sub;
     state.currentEvaluatingPageIndex = 0;
 
     // Fill Header Info
     document.getElementById("evalStudentName").textContent = sub.studentName;
-    document.getElementById("evalStudentAvatar").src = sub.studentAvatar;
+    document.getElementById("evalStudentAvatar").src = sub.studentAvatar || "https://api.dicebear.com/7.x/bottts/svg?seed=Student";
     document.getElementById("evalAssignmentTitle").textContent = `${sub.assignmentTitle} • জমা: ${formatBanglaDateTime(sub.submittedAt)}`;
 
     // Setup pages count
-    const totalPages = (sub.pages && sub.pages.length > 0) ? sub.pages.length : 1;
+    const totalPages = sub.pages.length;
     document.getElementById("totalPagesNum").textContent = totalPages;
     document.getElementById("currentPageNum").textContent = "1";
 
@@ -1769,12 +1863,13 @@ async function handleSaveEvaluation(event) {
         try {
             checkedImageBase64 = state.evaluator.exportEvaluatedImage();
         } catch (e) {
+    console.error('❌ [EduCheck App Catch Error]:', e);
             checkedImageBase64 = (sub.pages && sub.pages[state.currentEvaluatingPageIndex]) ? sub.pages[state.currentEvaluatingPageIndex] : SAMPLE_KHATA_IMAGE;
         }
 
         if (!Array.isArray(sub.pages)) sub.pages = [checkedImageBase64];
         sub.pages[state.currentEvaluatingPageIndex] = checkedImageBase64;
-        sub.evaluatedImages = [...sub.pages];
+        delete sub.evaluatedImages; // Remove duplicate to save 50% document size in Firestore
 
         sub.status = "checked";
         sub.evaluation = {
@@ -1830,6 +1925,7 @@ async function handleSaveEvaluation(event) {
 
         showToast("🎉 খাতা মূল্যায়ন সম্পন্ন এবং শিক্ষার্থীর পোর্টালে পাঠানো হয়েছে!", "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("মূল্যায়ন সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
     } finally {
         if (saveBtn) {
@@ -1859,6 +1955,13 @@ function switchStudentTab(tabName) {
         const pane = document.getElementById("paneStudentMySubmissions");
         if (pane) pane.style.display = "block";
         renderStudentHistory();
+    } else if (tabName === 'attendance') {
+        document.getElementById("tabStudentAttendance")?.classList.add("active");
+        document.getElementById("mobNavStudentAttendance")?.classList.add("active");
+        const pane = document.getElementById("paneStudentAttendance");
+        if (pane) pane.style.display = "block";
+        renderStudentClassLogs();
+        renderStudentDayByDayAttendance();
     } else if (tabName === 'leaderboard') {
         document.getElementById("tabStudentLeaderboard")?.classList.add("active");
         document.getElementById("mobNavStudentLeaderboard")?.classList.add("active");
@@ -2041,6 +2144,8 @@ async function renderStudentDashboard() {
 
     renderStudentActiveHw();
     renderStudentHistory();
+    renderStudentClassLogs();
+    renderStudentDayByDayAttendance();
     updateLiveNoticeAlert();
 }
 
@@ -2323,6 +2428,7 @@ async function handleStudentSubmitOmr() {
         renderStudentDashboard();
         showToast(`🎉 OMR পরীক্ষা সফলভাবে জমা দেওয়া হয়েছে! ${key ? 'প্রাপ্ত নম্বর: ' + totalScore + '/' + total : ''}`, "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("OMR জমা দিতে সমস্যা হয়েছে: " + err.message, "error");
     } finally {
         if (submitBtn) {
@@ -2413,7 +2519,11 @@ function renderStudentHistory() {
     const grid = document.getElementById("studentHistoryGrid");
     const student = state.currentUser;
 
-    const mySubs = state.submissions.filter(s => s.studentId === student.id);
+    const mySubs = state.submissions.filter(s => 
+        (student && s.studentId === student.id) ||
+        (student && student.phone && s.studentPhone === student.phone) ||
+        (student && s.studentName && s.studentName.toLowerCase() === student.name.toLowerCase())
+    );
     const checkedCount = mySubs.filter(s => s.status === 'checked').length;
     document.getElementById("studentCheckedCount").textContent = checkedCount;
 
@@ -2430,12 +2540,14 @@ function renderStudentHistory() {
 
     grid.innerHTML = mySubs.map(sub => {
         const isChecked = sub.status === 'checked';
+        const safePages = getSubmissionPages(sub);
+
         return `
             <div class="submission-card ${isChecked ? 'status-checked' : 'status-pending'}">
                 <div class="sub-card-header">
                     <div>
                         <div class="sub-assignment-title" style="font-size: 0.95rem;">${sub.assignmentTitle}</div>
-                        <div class="sub-time-meta"><i class="fa-regular fa-clock"></i> জমা: ${formatBanglaDateTime(sub.submittedAt)}</div>
+                        <div class="sub-time-meta"><i class="fa-regular fa-clock"></i> জমা: ${formatBanglaDateTime(sub.submittedAt)} • ${safePages.length} পৃষ্ঠা</div>
                     </div>
                     <span class="badge ${isChecked ? 'badge-class' : 'badge-subject'}">
                         ${isChecked ? '✅ দেখা সম্পন্ন' : '⏳ যাচাই হচ্ছে'}
@@ -2443,7 +2555,7 @@ function renderStudentHistory() {
                 </div>
                 <div class="sub-card-body">
                     <div class="sub-preview-thumbnails">
-                        ${sub.pages.map((p, i) => `<img src="${p}" class="sub-thumb" title="পৃষ্ঠা ${i+1}">`).join('')}
+                        ${safePages.map((p, i) => `<img src="${p}" class="sub-thumb" title="পৃষ্ঠা ${i+1}" onclick="viewEvaluatedKhata('${sub.id}')" style="cursor: pointer;" onerror="this.src='${SAMPLE_KHATA_IMAGE}'" alt="পৃষ্ঠা ${i+1}">`).join('')}
                     </div>
 
                     ${isChecked ? `
@@ -2500,26 +2612,50 @@ function openSubmitHomeworkModal(preselectedAssignId = null) {
 }
 
 async function handleKhataImagesSelected(event) {
-    const files = Array.from(event.target.files);
+    const files = Array.from(event.target.files || []);
     if (!files || files.length === 0) return;
 
-    for (const file of files) {
-        const rawBase64 = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.readAsDataURL(file);
-        });
+    const wrapper = document.getElementById("khataPagesPreviewWrapper");
+    const grid = document.getElementById("khataPagesGrid");
 
-        // Instant Pre-compression for fast upload and lightweight memory footprint
-        let optimized = rawBase64;
-        if (window.freeStorage && typeof window.freeStorage.compressImage === 'function') {
-            try {
-                optimized = await window.freeStorage.compressImage(rawBase64, 1000, 0.72);
-            } catch (err) {
-                optimized = rawBase64;
+    if (wrapper) wrapper.style.display = "block";
+
+    // Show lightweight processing banner
+    let loadingNotice = document.getElementById("khataCompressingNotice");
+    if (!loadingNotice && grid) {
+        loadingNotice = document.createElement("div");
+        loadingNotice.id = "khataCompressingNotice";
+        loadingNotice.style.cssText = "grid-column: 1/-1; padding: 10px 14px; background: #eff6ff; color: #1e40af; border: 1px dashed #93c5fd; border-radius: 8px; font-size: 0.85rem; display: flex; align-items: center; gap: 8px; margin-bottom: 6px;";
+        loadingNotice.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ছবি অপটিমাইজ ও সাইজ প্রসেস হচ্ছে...</span>`;
+        grid.prepend(loadingNotice);
+    }
+
+    try {
+        for (const file of files) {
+            let optimized = null;
+            if (window.freeStorage && typeof window.freeStorage.compressImage === 'function') {
+                try {
+                    optimized = await window.freeStorage.compressImage(file, 850, 0.62);
+                } catch (err) {
+                    console.error('❌ [EduCheck App Catch Error]:', err);
+                }
+            }
+            if (!optimized) {
+                optimized = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(file);
+                });
+            }
+            if (optimized) {
+                state.selectedUploadImages.push(optimized);
             }
         }
-        state.selectedUploadImages.push(optimized);
+    } finally {
+        const notice = document.getElementById("khataCompressingNotice");
+        if (notice) notice.remove();
+        if (event.target) event.target.value = ''; // Always clear file input value so user can take next photo
         renderUploadPagesPreview();
     }
 }
@@ -2529,20 +2665,23 @@ function renderUploadPagesPreview() {
     const grid = document.getElementById("khataPagesGrid");
     const badge = document.getElementById("pageCountBadge");
 
-    if (state.selectedUploadImages.length === 0) {
-        wrapper.style.display = "none";
+    if (!state.selectedUploadImages || state.selectedUploadImages.length === 0) {
+        if (wrapper) wrapper.style.display = "none";
         return;
     }
 
-    wrapper.style.display = "block";
-    badge.textContent = `${state.selectedUploadImages.length} পৃষ্ঠা`;
+    if (wrapper) wrapper.style.display = "block";
+    if (badge) badge.textContent = `${state.selectedUploadImages.length} পৃষ্ঠা`;
 
-    grid.innerHTML = state.selectedUploadImages.map((imgSrc, idx) => `
-        <div class="page-thumb-card">
-            <img src="${imgSrc}" alt="পৃষ্ঠা ${idx+1}">
-            <button type="button" class="delete-page-btn" onclick="removeSelectedPage(${idx})">&times;</button>
-        </div>
-    `).join('');
+    if (grid) {
+        grid.innerHTML = state.selectedUploadImages.map((imgSrc, idx) => `
+            <div class="page-thumb-card">
+                <img src="${imgSrc}" alt="পৃষ্ঠা ${idx+1}" onerror="this.src='${SAMPLE_KHATA_IMAGE}'">
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: white; font-size: 0.75rem; text-align: center; padding: 2px 0;">পৃষ্ঠা ${idx+1}</div>
+                <button type="button" class="delete-page-btn" onclick="removeSelectedPage(${idx})" title="পৃষ্ঠা মুছুন">&times;</button>
+            </div>
+        `).join('');
+    }
 }
 
 function removeSelectedPage(index) {
@@ -2559,6 +2698,11 @@ async function handleStudentHomeworkSubmit(event) {
     const student = state.currentUser;
     const submitBtn = document.getElementById("confirmSubmitBtn");
 
+    if (!state.selectedUploadImages || state.selectedUploadImages.length === 0) {
+        showToast("⚠️ অনুগ্রহ করে খাতার অন্তত একটি ছবি ক্যামেরা বা গ্যালারি থেকে সিলেক্ট করুন!", "error");
+        return;
+    }
+
     let assignTitle = "সাধারণ অনুশীলনী / হোমওয়ার্ক খাতা";
     let assignType = "homework";
     const assign = state.assignments.find(a => a.id === assignId);
@@ -2570,32 +2714,27 @@ async function handleStudentHomeworkSubmit(event) {
     // Show upload progress on button & disable to prevent double submission
     if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ছবি প্রসেসিং ও সংরক্ষণ হচ্ছে...`;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ছবি ক্লাউডে সংরক্ষণ হচ্ছে...`;
     }
 
     try {
         let finalPages = [];
-        if (state.selectedUploadImages.length > 0) {
-            for (const rawImg of state.selectedUploadImages) {
-                let compressed = rawImg;
-                if (window.freeStorage && typeof window.freeStorage.compressImage === 'function') {
-                    try {
-                        compressed = await window.freeStorage.compressImage(rawImg, 1000, 0.72);
-                    } catch (e) {
-                        compressed = rawImg;
-                    }
-                }
-                finalPages.push(compressed);
-            }
+        if (window.freeStorage && typeof window.freeStorage.compressBatch === 'function') {
+            finalPages = await window.freeStorage.compressBatch(state.selectedUploadImages);
         } else {
-            finalPages = [SAMPLE_KHATA_IMAGE];
+            finalPages = [...state.selectedUploadImages];
+        }
+
+        if (finalPages.length === 0) {
+            showToast("⚠️ খাতার ছবি প্রসেস করা সম্ভব হয়নি, অনুগ্রহ করে আবার ছবি তুলুন।", "error");
+            return;
         }
 
         const newSub = {
             id: "SUB-" + Date.now(),
             studentId: student ? student.id : (state.currentUser ? state.currentUser.id : generateNextStudentId()),
             studentName: student ? student.name : (state.currentUser ? state.currentUser.name : "শিক্ষার্থী"),
-            studentAvatar: student ? student.avatar : (state.currentUser ? state.currentUser.avatar : "https://api.dicebear.com/7.x/bottts/svg?seed=Student"),
+            studentAvatar: student ? (student.avatar || "https://api.dicebear.com/7.x/bottts/svg?seed=Student") : "https://api.dicebear.com/7.x/bottts/svg?seed=Student",
             studentClass: student ? (student.class || "Class 10") : "Class 10",
             assignmentId: assign ? assign.id : "GENERAL",
             assignmentTitle: assignTitle,
@@ -2617,6 +2756,7 @@ async function handleStudentHomeworkSubmit(event) {
             targetRole: "teacher"
         });
 
+        state.selectedUploadImages = [];
         closeModal("submitHomeworkModal");
         renderStudentDashboard();
         showToast("🎉 আপনার খাতা সফলভাবে জমা হয়েছে!", "success");
@@ -2624,8 +2764,10 @@ async function handleStudentHomeworkSubmit(event) {
         console.error("Submission failed:", err);
         showToast("খাতা জমা দিতে সমস্যা হয়েছে, অনুগ্রহ করে আবার চেষ্টা করুন।", "error");
     } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = `<i class="fa-solid fa-check-double"></i> খাতা জমা দিন`;
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<i class="fa-solid fa-check-double"></i> খাতা জমা দিন`;
+        }
     }
 }
 
@@ -2654,12 +2796,12 @@ function viewEvaluatedKhata(submissionId) {
     }
 
     const imagesList = document.getElementById("viewCheckedImagesList");
-    const displayImages = sub.evaluatedImages || sub.pages || [SAMPLE_KHATA_IMAGE];
+    const displayImages = getSubmissionPages(sub);
 
     imagesList.innerHTML = displayImages.map((imgSrc, i) => `
-        <div style="text-align: center;">
+        <div style="text-align: center; margin-bottom: 14px;">
             <span style="font-weight: 600; font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px;">পৃষ্ঠা ${i+1}:</span>
-            <img src="${imgSrc}" class="checked-khata-img" alt="Evaluated Page ${i+1}">
+            <img src="${imgSrc}" class="checked-khata-img" alt="পৃষ্ঠা ${i+1}" onerror="this.src='${SAMPLE_KHATA_IMAGE}'">
         </div>
     `).join('');
 
@@ -2828,6 +2970,11 @@ function formatBanglaDateTime(isoString) {
 }
 
 function showToast(text, type = "info") {
+    if (type === "error") {
+        console.error("%c🚨 [EduCheck Toast Error]", "background: #ef4444; color: #ffffff; padding: 3px 6px; font-weight: bold; border-radius: 4px;", text);
+    } else if (type === "warning") {
+        console.warn("%c⚠️ [EduCheck Toast Warning]", "background: #f59e0b; color: #ffffff; padding: 3px 6px; font-weight: bold; border-radius: 4px;", text);
+    }
     let bg = "linear-gradient(to right, #4f46e5, #6366f1)";
     if (type === "success") bg = "linear-gradient(to right, #10b981, #059669)";
     if (type === "error") bg = "linear-gradient(to right, #ef4444, #dc2626)";
@@ -3982,20 +4129,40 @@ async function saveDailyAttendance() {
             attRecord.records[s.id] = "present";
         });
         state.attendance.push(attRecord);
+    } else {
+        if (!attRecord.records) attRecord.records = {};
+        state.students.forEach(s => {
+            if (!attRecord.records[s.id]) {
+                attRecord.records[s.id] = "present";
+            }
+        });
+        attRecord.updatedAt = new Date().toISOString();
     }
+
+    const saveBtns = document.querySelectorAll("button[onclick*='saveDailyAttendance']");
+    saveBtns.forEach(b => {
+        b.disabled = true;
+        b.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ক্লাউডে সংরক্ষণ হচ্ছে...`;
+    });
 
     try {
         await window.dbStorage.set("attendance", attRecord);
 
         addNotification({
             title: `📅 উপস্থিতি সংরক্ষিত হয়েছে (${selectedDate})`,
-            message: `শিক্ষক উপস্থিতি গ্রহণ করেছেন।`,
+            message: `শিক্ষক ${selectedDate} তারিখের দৈনিক উপস্থিতি গ্রহণ করেছেন।`,
             targetClass: 'All'
         });
 
         showToast(`✅ ${selectedDate} তারিখের উপস্থিতি সফলভাবে সংরক্ষিত ও ক্লাউডে সিঙ্ক হয়েছে!`, "success");
     } catch (err) {
+        console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("উপস্থিতি সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
+    } finally {
+        saveBtns.forEach(b => {
+            b.disabled = false;
+            b.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> উপস্থিতি সংরক্ষণ`;
+        });
     }
 }
 
@@ -4025,6 +4192,625 @@ function sendAbsentWhatsAppAlert(studentId) {
 
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");
+}
+
+/**
+ * Render Student Day-by-Day Attendance Timeline & Summary Cards
+ */
+function renderStudentDayByDayAttendance() {
+    const student = state.currentUser;
+    if (!student) return;
+
+    const timeline = document.getElementById("studentAttTimelineGrid");
+    if (!timeline) return;
+
+    // Filter all attendance records where student has an entry
+    const studentRecords = state.attendance.filter(a => a && a.date && a.records && a.records[student.id] !== undefined);
+
+    // Sort records descending by date (newest first)
+    studentRecords.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    let totalCount = studentRecords.length;
+    let presentCount = 0;
+    let absentCount = 0;
+    let lateCount = 0;
+
+    studentRecords.forEach(a => {
+        const status = a.records[student.id];
+        if (status === "present") presentCount++;
+        else if (status === "absent") absentCount++;
+        else if (status === "late") lateCount++;
+    });
+
+    const elTotal = document.getElementById("studentAttSummaryTotal");
+    const elPres = document.getElementById("studentAttSummaryPresent");
+    const elAbs = document.getElementById("studentAttSummaryAbsent");
+    const elLate = document.getElementById("studentAttSummaryLate");
+    const badgePct = document.getElementById("studentAttPercentageBadge");
+    const profileBadge = document.getElementById("studentProfileAttendance");
+
+    let attPct = totalCount > 0 ? Math.round(((presentCount + (lateCount * 0.5)) / totalCount) * 100) : 100;
+
+    if (elTotal) elTotal.textContent = totalCount;
+    if (elPres) elPres.textContent = presentCount;
+    if (elAbs) elAbs.textContent = absentCount;
+    if (elLate) elLate.textContent = lateCount;
+    if (badgePct) badgePct.textContent = `${attPct}%`;
+    if (profileBadge) profileBadge.innerHTML = `<i class="fa-solid fa-calendar-check"></i> উপস্থিতি: ${attPct}%`;
+
+    // Apply Filter dropdown selection
+    const filterSelect = document.getElementById("studentAttStatusFilter");
+    const filterVal = filterSelect ? filterSelect.value : "all";
+
+    let filteredRecords = studentRecords;
+    if (filterVal !== "all") {
+        filteredRecords = studentRecords.filter(a => a.records[student.id] === filterVal);
+    }
+
+    if (filteredRecords.length === 0) {
+        timeline.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; background: var(--bg-surface-secondary); border-radius: 12px; border: 1px dashed var(--border); grid-column: 1/-1;">
+                <i class="fa-solid fa-calendar-xmark" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>${totalCount === 0 ? 'এখনো কোনো ক্লাসের উপস্থিতি রেকর্ড করা হয়নি' : 'এই ফিল্টারে কোনো উপস্থিতি মেলেনি'}</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">
+                    ${totalCount === 0 ? 'শিক্ষক ক্লাসের উপস্থিতি গ্রহণ করলে ফায়ারবেস ক্লাউডের মাধ্যমে প্রতিদিনের উপস্থিতি এখানে স্বয়ংক্রিয়ভাবে যোগ হবে।' : 'অন্য ফিল্টার নির্বাচন করে চেষ্টা করুন।'}
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    const banglaDays = ["রবিবার", "সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার"];
+
+    timeline.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+            ${filteredRecords.map(rec => {
+                const st = rec.records[student.id];
+                const dateObj = new Date(rec.date);
+                const dayName = isNaN(dateObj.getTime()) ? '' : banglaDays[dateObj.getDay()];
+
+                let bg = "rgba(16, 185, 129, 0.08)";
+                let border = "#10b981";
+                let badgeBg = "#10b981";
+                let badgeText = "✅ উপস্থিত (Present)";
+
+                if (st === "absent") {
+                    bg = "rgba(239, 68, 68, 0.08)";
+                    border = "#ef4444";
+                    badgeBg = "#ef4444";
+                    badgeText = "❌ অনুপস্থিত (Absent)";
+                } else if (st === "late") {
+                    bg = "rgba(245, 158, 11, 0.08)";
+                    border = "#f59e0b";
+                    badgeBg = "#f59e0b";
+                    badgeText = "⏳ বিলম্ব (Late)";
+                }
+
+                return `
+                    <div style="background: ${bg}; border-left: 5px solid ${border}; border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--border); border-left-width: 5px; border-left-color: ${border};">
+                        <div>
+                            <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                                <i class="fa-solid fa-calendar-day" style="color: ${border};"></i> ${rec.date} ${dayName ? '(' + dayName + ')' : ''}
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
+                                <i class="fa-solid fa-cloud-check" style="color: #10b981;"></i> ফায়ারবেস ক্লাউডে সংরক্ষিত
+                            </div>
+                        </div>
+                        <span style="background: ${badgeBg}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                            ${badgeText}
+                        </span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+// ==========================================================================
+// 3.5 TEACHER'S TEACHING DAYS & TUITION CLASS DIARY (পড়ানোর দিনলিপি)
+// ==========================================================================
+
+/**
+ * Format YYYY-MM-DD to Bengali readable string
+ * e.g. "2026-11-11" -> "১১ নভেম্বর, ২০২৬ (বুধবার)"
+ */
+function formatBengaliDateWithDay(dateStr) {
+    if (!dateStr) return '-';
+    try {
+        const parts = String(dateStr).split('-');
+        if (parts.length === 3) {
+            const y = parts[0], m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
+            const banglaDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
+            const toBnDigits = (n) => String(n).replace(/\d/g, digit => banglaDigits[parseInt(digit, 10)]);
+            const months = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
+            const days = ["রবিবার", "সোমবার", "মঙ্গলবার", "বুধবার", "বৃহস্পতিবার", "শুক্রবার", "শনিবার"];
+            const dt = new Date(y, m - 1, d);
+            const dayName = isNaN(dt.getTime()) ? '' : days[dt.getDay()];
+            const mName = months[m - 1] || parts[1];
+            return `${toBnDigits(d)} ${mName}, ${toBnDigits(y)}${dayName ? ' (' + dayName + ')' : ''}`;
+        }
+    } catch (e) {}
+    return dateStr;
+}
+
+/**
+ * Switch teacher attendance sub-views between Class Logs and Student Attendance Register
+ */
+function switchTeacherAttendanceSubView(viewType) {
+    const btnLogs = document.getElementById("subTabTeacherClassLogs");
+    const btnAtt = document.getElementById("subTabTeacherStudentAtt");
+    const paneLogs = document.getElementById("teacherClassLogsSubView");
+    const paneAtt = document.getElementById("teacherStudentAttSubView");
+
+    if (viewType === 'classLogs') {
+        if (btnLogs) { btnLogs.className = "btn btn-primary"; }
+        if (btnAtt) { btnAtt.className = "btn btn-outline"; }
+        if (paneLogs) paneLogs.style.display = "block";
+        if (paneAtt) paneAtt.style.display = "none";
+        renderTeacherClassLogs();
+    } else {
+        if (btnLogs) { btnLogs.className = "btn btn-outline"; }
+        if (btnAtt) { btnAtt.className = "btn btn-primary"; }
+        if (paneLogs) paneLogs.style.display = "none";
+        if (paneAtt) paneAtt.style.display = "block";
+        loadAttendanceForSelectedDate();
+    }
+}
+
+/**
+ * Open modal to add or edit a teaching day / class log entry
+ */
+function openAddClassLogModal(logId = null, prefillStudentId = null) {
+    const select = document.getElementById("classLogStudentSelect");
+    if (select) {
+        let optionsHtml = `<option value="" disabled selected>-- নির্দিষ্ট শিক্ষার্থী নির্বাচন করুন * --</option>`;
+        state.students.forEach(s => {
+            optionsHtml += `<option value="${s.id}">👨‍🎓 ${escapeHtml(s.name)} (${s.class || 'শ্রেণি নাই'}${s.phone ? ' • ' + s.phone : ''})</option>`;
+        });
+        optionsHtml += `<option value="ALL">👥 সকল শিক্ষার্থী (কমন ক্লাস/ব্যাচ)</option>`;
+        select.innerHTML = optionsHtml;
+    }
+
+    const editIdInput = document.getElementById("classLogEditId");
+    const dateInput = document.getElementById("classLogDate");
+    const subjectInput = document.getElementById("classLogSubject");
+    const durationInput = document.getElementById("classLogDuration");
+    const topicsInput = document.getElementById("classLogTopics");
+    const hwInput = document.getElementById("classLogHomework");
+    const notesInput = document.getElementById("classLogNotes");
+    const modalTitle = document.getElementById("classLogModalTitle");
+    const submitBtn = document.getElementById("saveClassLogSubmitBtn");
+
+    if (logId) {
+        const log = state.classLogs.find(l => l.id === logId);
+        if (log) {
+            if (editIdInput) editIdInput.value = log.id;
+            if (dateInput) dateInput.value = log.date || new Date().toISOString().split('T')[0];
+            if (select) select.value = log.studentId || "";
+            if (subjectInput) subjectInput.value = log.subject || "";
+            if (durationInput) durationInput.value = log.duration || "";
+            if (topicsInput) topicsInput.value = log.topics || "";
+            if (hwInput) hwInput.value = log.homework || "";
+            if (notesInput) notesInput.value = log.notes || "";
+            if (modalTitle) modalTitle.innerHTML = `<i class="fa-solid fa-pen-to-square" style="color: var(--primary);"></i> পড়ানোর দিনলিপি সম্পাদনা`;
+            if (submitBtn) submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> পরিবর্তন সংরক্ষণ করুন`;
+        }
+    } else {
+        const form = document.getElementById("addClassLogForm");
+        if (form) form.reset();
+        if (editIdInput) editIdInput.value = "";
+        if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
+        if (durationInput) durationInput.value = "১ ঘন্টা ৩০ মিনিট";
+        if (prefillStudentId && select) {
+            select.value = prefillStudentId;
+        } else if (select) {
+            select.value = "";
+        }
+        if (modalTitle) modalTitle.innerHTML = `<i class="fa-solid fa-calendar-plus" style="color: var(--primary);"></i> নতুন পড়ানোর দিন / ক্লাস এন্ট্রি`;
+        if (submitBtn) submitBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> দিনলিপি সংরক্ষণ করুন`;
+    }
+
+    openModal("addClassLogModal");
+}
+
+/**
+ * Save new or updated teaching day log to Cloud Firestore and IndexedDB
+ */
+async function handleSaveClassLog(event) {
+    event.preventDefault();
+
+    const editId = document.getElementById("classLogEditId")?.value;
+    const date = document.getElementById("classLogDate")?.value.trim();
+    const studentSelect = document.getElementById("classLogStudentSelect");
+    const studentId = studentSelect ? studentSelect.value : "";
+    const subject = document.getElementById("classLogSubject")?.value.trim();
+    const duration = document.getElementById("classLogDuration")?.value.trim() || "১ ঘন্টা ৩০ মিনিট";
+    const topics = document.getElementById("classLogTopics")?.value.trim();
+    const homework = document.getElementById("classLogHomework")?.value.trim() || "কোনো বাড়ির কাজ দেওয়া হয়নি";
+    const notes = document.getElementById("classLogNotes")?.value.trim() || "";
+
+    if (!studentId) {
+        showToast("অনুগ্রহ করে কোন শিক্ষার্থীকে পড়িয়েছেন তা নির্বাচন করুন", "warning");
+        if (studentSelect) studentSelect.focus();
+        return;
+    }
+
+    if (!date || !subject || !topics) {
+        showToast("অনুগ্রহ করে তারিখ, বিষয় ও কী পড়ানো হয়েছে তা পূরণ করুন", "warning");
+        return;
+    }
+
+    let studentName = "সকল শিক্ষার্থী";
+    let studentClass = "All";
+    let studentPhone = "";
+    if (studentId !== "ALL") {
+        const found = state.students.find(s => s.id === studentId);
+        if (found) {
+            studentName = found.name;
+            studentClass = found.class;
+            studentPhone = found.phone || "";
+        }
+    }
+
+    const saveBtn = document.getElementById("saveClassLogSubmitBtn");
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ক্লাউডে সিঙ্ক হচ্ছে...`;
+    }
+
+    const logId = editId || ("LOG-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6));
+    const nowIso = new Date().toISOString();
+
+    const logItem = {
+        id: logId,
+        date: date,
+        studentId: studentId,
+        studentName: studentName,
+        studentClass: studentClass,
+        studentPhone: studentPhone,
+        subject: subject,
+        duration: duration,
+        topics: topics,
+        homework: homework,
+        notes: notes,
+        teacherName: "আফিক",
+        status: "completed",
+        updatedAt: nowIso,
+        createdAt: editId ? (state.classLogs.find(l => l.id === editId)?.createdAt || nowIso) : nowIso
+    };
+
+    try {
+        await window.dbStorage.set("class_logs", logItem);
+
+        const idx = state.classLogs.findIndex(l => l.id === logId);
+        if (idx !== -1) {
+            state.classLogs[idx] = logItem;
+        } else {
+            state.classLogs.unshift(logItem);
+        }
+
+        // Send Push Notification isolated to this student or broadcast
+        if (studentId !== "ALL") {
+            addNotification({
+                title: `📅 শিক্ষক আফিক আপনার পড়ানোর দিনলিপি যুক্ত করেছেন!`,
+                message: `${date} তারিখে ${subject} পড়ানো হয়েছে: ${topics.substring(0, 70)}${topics.length > 70 ? '...' : ''}`,
+                studentId: studentId,
+                targetClass: studentClass || 'All'
+            });
+        } else {
+            addNotification({
+                title: `📅 শিক্ষক আফিক পড়ানোর দিনলিপি যুক্ত করেছেন!`,
+                message: `${date} তারিখে ${subject} পড়ানো হয়েছে: ${topics.substring(0, 70)}${topics.length > 70 ? '...' : ''}`,
+                targetClass: 'All'
+            });
+        }
+
+        closeModal("addClassLogModal");
+        showToast(editId ? `✅ ${studentName}-এর দিনলিপির আপডেট ফায়ারবেস ক্লাউডে সংরক্ষিত হয়েছে!` : `✅ ${studentName}-এর ${date} তারিখের পড়ানোর রেকর্ড ক্লাউডে সফলভাবে সেভ হয়েছে!`, "success");
+
+        renderTeacherClassLogs();
+    } catch (err) {
+        console.error("❌ Class log save error:", err);
+        showToast("দিনলিপি সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> দিনলিপি সংরক্ষণ করুন`;
+        }
+    }
+}
+
+/**
+ * Permanently delete a class log from Firebase and IndexedDB
+ */
+async function deleteClassLog(logId) {
+    if (!logId) return;
+    const log = state.classLogs.find(l => l.id === logId);
+    const dateLabel = log ? log.date : 'এই';
+
+    if (!confirm(`আপনি কি নিশ্চিতভাবে ${dateLabel} তারিখের পড়ানোর দিনলিপিটি স্থায়ীভাবে মুছে ফেলতে চান?`)) {
+        return;
+    }
+
+    try {
+        await window.dbStorage.delete("class_logs", logId);
+        state.classLogs = state.classLogs.filter(l => l.id !== logId);
+        showToast(`🗑️ ${dateLabel} তারিখের দিনলিপি মুছে ফেলা হয়েছে!`, "info");
+        renderTeacherClassLogs();
+    } catch (err) {
+        console.error("❌ Class log delete error:", err);
+        showToast("মুছে ফেলতে সমস্যা হয়েছে: " + err.message, "error");
+    }
+}
+
+/**
+ * Render Teacher's Class Logs list with stats and filters
+ */
+function renderTeacherClassLogs() {
+    const listEl = document.getElementById("teacherClassLogsList");
+    if (!listEl) return;
+
+    // Populate student filter dropdown if needed
+    const studentFilter = document.getElementById("teacherLogStudentFilter");
+    if (studentFilter && studentFilter.children.length <= 1 && state.students.length > 0) {
+        let optHtml = `<option value="all">সকল শিক্ষার্থী / ব্যাচ</option>`;
+        state.students.forEach(s => {
+            optHtml += `<option value="${s.id}">${escapeHtml(s.name)} (${s.class || ''})</option>`;
+        });
+        studentFilter.innerHTML = optHtml;
+    }
+
+    const currentYearMonth = new Date().toISOString().substring(0, 7); // e.g. "2026-11"
+    const allSorted = [...state.classLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Filter by search, student, and month
+    const searchQuery = (document.getElementById("teacherLogSearchInput")?.value || "").toLowerCase().trim();
+    const selStudent = studentFilter ? studentFilter.value : "all";
+    const monthFilter = document.getElementById("teacherLogMonthFilter")?.value || "this_month";
+
+    // Dynamic stats: if a student is filtered, show stats for that student specifically
+    const relevantLogsForStats = selStudent !== "all" ? allSorted.filter(l => l.studentId === selStudent) : allSorted;
+    const thisMonthLogs = relevantLogsForStats.filter(l => l && l.date && l.date.startsWith(currentYearMonth));
+    const lastDate = relevantLogsForStats[0] ? formatBengaliDateWithDay(relevantLogsForStats[0].date) : '-';
+
+    const countMonthEl = document.getElementById("teacherLogsThisMonthCount");
+    const countTotalEl = document.getElementById("teacherLogsTotalCount");
+    const lastDateEl = document.getElementById("teacherLogsLastDate");
+
+    if (countMonthEl) countMonthEl.textContent = thisMonthLogs.length;
+    if (countTotalEl) countTotalEl.textContent = relevantLogsForStats.length;
+    if (lastDateEl) lastDateEl.textContent = lastDate;
+
+    let filtered = allSorted;
+    if (selStudent !== "all") {
+        filtered = filtered.filter(l => l.studentId === selStudent);
+    }
+    if (monthFilter === "this_month") {
+        filtered = filtered.filter(l => l.date && l.date.startsWith(currentYearMonth));
+    }
+    if (searchQuery) {
+        filtered = filtered.filter(l =>
+            (l.subject && l.subject.toLowerCase().includes(searchQuery)) ||
+            (l.topics && l.topics.toLowerCase().includes(searchQuery)) ||
+            (l.homework && l.homework.toLowerCase().includes(searchQuery)) ||
+            (l.studentName && l.studentName.toLowerCase().includes(searchQuery)) ||
+            (l.date && l.date.includes(searchQuery))
+        );
+    }
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; background: var(--bg-surface); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-calendar-xmark" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4 style="color: var(--text-main); margin-bottom: 6px;">
+                    ${state.classLogs.length === 0 ? 'এখনো কোনো পড়ানোর দিন রেকর্ড করা হয়নি' : 'কোনো পড়ানোর দিন মেলেনি'}
+                </h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+                    আপনি কবে পড়াতে গিয়েছেন তার তারিখ, বিষয় ও বাড়ির কাজ এন্ট্রি দিয়ে রাখুন।
+                </p>
+                <button class="btn btn-primary" onclick="openAddClassLogModal()">
+                    <i class="fa-solid fa-calendar-plus"></i> নতুন পড়ানোর দিন যোগ করুন
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(log => {
+        const banglaDate = formatBengaliDateWithDay(log.date);
+        return `
+            <div style="background: var(--bg-surface); border: 1px solid var(--border); border-left: 5px solid var(--primary); border-radius: 12px; padding: 1.25rem; box-shadow: var(--shadow-sm); transition: transform 0.15s ease;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+                    <div>
+                        <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-calendar-day" style="color: var(--primary);"></i>
+                            <span>${banglaDate}</span>
+                            <span style="background: rgba(16, 185, 129, 0.12); color: #10b981; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
+                                <i class="fa-solid fa-check"></i> পড়ানো হয়েছে
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: 0.82rem;">
+                            <span style="background: var(--bg-surface-secondary); padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-main); font-weight: 600;">
+                                <i class="fa-solid fa-user-graduate" style="color: var(--primary);"></i> ${escapeHtml(log.studentName)} ${log.studentClass && log.studentClass !== 'All' ? '(' + escapeHtml(log.studentClass) + ')' : ''}
+                            </span>
+                            <span style="background: var(--bg-surface-secondary); padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-main); font-weight: 600;">
+                                <i class="fa-solid fa-book" style="color: #8b5cf6;"></i> বিষয়: ${escapeHtml(log.subject)}
+                            </span>
+                            ${log.duration ? `
+                                <span style="background: var(--bg-surface-secondary); padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-muted);">
+                                    <i class="fa-solid fa-clock" style="color: #f59e0b;"></i> ${escapeHtml(log.duration)}
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="btn btn-outline btn-sm" onclick="openAddClassLogModal('${log.id}')" title="সম্পাদনা করুন" style="padding: 6px 12px; font-size: 0.8rem;">
+                            <i class="fa-solid fa-pen-to-square"></i> সম্পাদনা
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteClassLog('${log.id}')" title="মুছে ফেলুন" style="padding: 6px 10px; font-size: 0.8rem;">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px 12px; background: var(--bg-surface-secondary); border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="font-size: 0.88rem; color: var(--text-main); line-height: 1.5; margin-bottom: 8px;">
+                        <strong style="color: var(--primary);"><i class="fa-solid fa-chalkboard-user"></i> আজ ক্লাসে যা পড়ানো হয়েছে:</strong><br>
+                        <span style="white-space: pre-wrap;">${escapeHtml(log.topics)}</span>
+                    </div>
+
+                    ${log.homework && log.homework !== 'কোনো বাড়ির কাজ দেওয়া হয়নি' ? `
+                        <div style="font-size: 0.85rem; color: var(--text-main); line-height: 1.5; padding-top: 6px; border-top: 1px dashed var(--border);">
+                            <strong style="color: #d97706;"><i class="fa-solid fa-house-laptop"></i> পরবর্তী বাড়ির কাজ (HW):</strong>
+                            <span style="white-space: pre-wrap;"> ${escapeHtml(log.homework)}</span>
+                        </div>
+                    ` : ''}
+
+                    ${log.notes ? `
+                        <div style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; padding-top: 6px; border-top: 1px dashed var(--border); font-style: italic;">
+                            <strong><i class="fa-solid fa-comment-dots"></i> শিক্ষকের নোট:</strong> ${escapeHtml(log.notes)}
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 0.75rem; color: var(--text-muted);">
+                    <span><i class="fa-solid fa-user-tie"></i> শিক্ষক: আফিক</span>
+                    <span><i class="fa-solid fa-cloud-check" style="color: #10b981;"></i> ফায়ারবেস ক্লাউডে রিয়েল-টাইম সিঙ্ক</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/**
+ * Render Student's view of teacher's day-by-day teaching diary
+ */
+function renderStudentClassLogs() {
+    const student = state.currentUser;
+    if (!student) return;
+
+    const timeline = document.getElementById("studentClassLogsTimeline");
+    if (!timeline) return;
+
+    // Strict individual isolation: Only show logs meant specifically for this student
+    const myLogs = state.classLogs.filter(l => {
+        if (!l) return false;
+        // Match by studentId
+        if (l.studentId && (l.studentId === student.id || l.studentId === student.phone)) {
+            return true;
+        }
+        // Match by studentPhone
+        if (l.studentPhone && (l.studentPhone === student.phone || l.studentPhone === student.id)) {
+            return true;
+        }
+        // If explicitly set for ALL students in a group batch
+        if (l.studentId === "ALL") {
+            return true;
+        }
+        return false;
+    });
+
+    // Sort descending by date
+    myLogs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const currentYearMonth = new Date().toISOString().substring(0, 7);
+    const thisMonthLogs = myLogs.filter(l => l && l.date && l.date.startsWith(currentYearMonth));
+
+    const elThisMonth = document.getElementById("studentLogsThisMonthCount");
+    const elTotal = document.getElementById("studentLogsTotalCount");
+    const elLastDate = document.getElementById("studentLogsLastDate");
+    const badgeCount = document.getElementById("studentAttPercentageBadge");
+
+    if (elThisMonth) elThisMonth.textContent = thisMonthLogs.length;
+    if (elTotal) elTotal.textContent = myLogs.length;
+    if (elLastDate) elLastDate.textContent = myLogs[0] ? formatBengaliDateWithDay(myLogs[0].date) : '-';
+    if (badgeCount) badgeCount.textContent = `${thisMonthLogs.length} দিন`;
+
+    // Filter by search & month dropdown
+    const searchVal = (document.getElementById("studentClassLogSearch")?.value || "").toLowerCase().trim();
+    const monthFilter = document.getElementById("studentClassLogMonthFilter")?.value || "this_month";
+
+    let filtered = myLogs;
+    if (monthFilter === "this_month") {
+        filtered = filtered.filter(l => l.date && l.date.startsWith(currentYearMonth));
+    }
+    if (searchVal) {
+        filtered = filtered.filter(l =>
+            (l.subject && l.subject.toLowerCase().includes(searchVal)) ||
+            (l.topics && l.topics.toLowerCase().includes(searchVal)) ||
+            (l.homework && l.homework.toLowerCase().includes(searchVal)) ||
+            (l.date && l.date.includes(searchVal))
+        );
+    }
+
+    if (filtered.length === 0) {
+        timeline.innerHTML = `
+            <div style="text-align: center; padding: 2.5rem; background: var(--bg-surface-secondary); border-radius: 12px; border: 1px dashed var(--border);">
+                <i class="fa-solid fa-calendar-xmark" style="font-size: 2.5rem; color: #94a3b8; margin-bottom: 10px;"></i>
+                <h4>${myLogs.length === 0 ? 'শিক্ষক এখনো কোনো পড়ানোর দিন এন্ট্রি দেননি' : 'এই ফিল্টারে কোনো পড়ানোর রেকর্ড মেলেনি'}</h4>
+                <p style="font-size: 0.85rem; color: var(--text-muted);">
+                    শিক্ষক আফিক আপনার ক্লাসে পড়ালে এবং দিনলিপি এন্ট্রি দিলে সাথে সাথে এখানে তারিখ অনুযায়ী প্রদর্শিত হবে।
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    timeline.innerHTML = filtered.map(log => {
+        const banglaDate = formatBengaliDateWithDay(log.date);
+        return `
+            <div style="background: var(--bg-surface); border: 1px solid var(--border); border-left: 5px solid #10b981; border-radius: 12px; padding: 1.25rem; box-shadow: var(--shadow-sm);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+                    <div>
+                        <div style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-calendar-day" style="color: #10b981;"></i>
+                            <span>${banglaDate}</span>
+                            <span style="background: rgba(16, 185, 129, 0.12); color: #10b981; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 12px;">
+                                <i class="fa-solid fa-check-double"></i> শিক্ষক পড়িয়েছেন
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: 0.82rem;">
+                            <span style="background: var(--bg-surface-secondary); padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-main); font-weight: 600;">
+                                <i class="fa-solid fa-book" style="color: #3b82f6;"></i> বিষয়: ${escapeHtml(log.subject)}
+                            </span>
+                            ${log.duration ? `
+                                <span style="background: var(--bg-surface-secondary); padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-muted);">
+                                    <i class="fa-solid fa-clock" style="color: #f59e0b;"></i> ${escapeHtml(log.duration)}
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); background: var(--bg-surface-secondary); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);">
+                        <i class="fa-solid fa-user-tie"></i> শিক্ষক: আফিক
+                    </span>
+                </div>
+
+                <div style="margin-top: 10px; padding: 10px 12px; background: var(--bg-surface-secondary); border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="font-size: 0.88rem; color: var(--text-main); line-height: 1.5; margin-bottom: 8px;">
+                        <strong style="color: var(--primary);"><i class="fa-solid fa-chalkboard-user"></i> আজ ক্লাসে যা পড়ানো হয়েছে:</strong><br>
+                        <span style="white-space: pre-wrap;">${escapeHtml(log.topics)}</span>
+                    </div>
+
+                    ${log.homework && log.homework !== 'কোনো বাড়ির কাজ দেওয়া হয়নি' ? `
+                        <div style="font-size: 0.85rem; color: var(--text-main); line-height: 1.5; padding-top: 6px; border-top: 1px dashed var(--border);">
+                            <strong style="color: #d97706;"><i class="fa-solid fa-house-laptop"></i> পরবর্তী বাড়ির কাজ (HW):</strong>
+                            <span style="white-space: pre-wrap;"> ${escapeHtml(log.homework)}</span>
+                        </div>
+                    ` : ''}
+
+                    ${log.notes ? `
+                        <div style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.4; padding-top: 6px; border-top: 1px dashed var(--border); font-style: italic;">
+                            <strong><i class="fa-solid fa-comment-dots"></i> শিক্ষক আফিকের মন্তব্য:</strong> ${escapeHtml(log.notes)}
+                        </div>
+                    ` : ''}
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 8px; font-size: 0.75rem; color: #10b981; font-weight: 600; gap: 4px;">
+                    <i class="fa-solid fa-cloud-check"></i> ফায়ারবেস ক্লাউডে যাচাইকৃত দিনলিপি
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 // ==========================================================================
@@ -4104,6 +4890,7 @@ async function handleCreateDoubt(event) {
         renderStudentDoubts();
         showToast("🎉 আপনার প্রশ্নটি শিক্ষকের কাছে সফলভাবে পাঠানো হয়েছে!", "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("প্রশ্ন পাঠাতে সমস্যা হয়েছে: " + err.message, "error");
     }
 }
@@ -4334,6 +5121,7 @@ async function toggleDoubtVoiceRecording() {
         if (btn) btn.classList.add("recording-active");
         if (statusSpan) statusSpan.textContent = "🔴 রেকর্ডিং হচ্ছে...";
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("মাইক্রোফোন চালু করা যায়নি: " + err.message, "error");
     }
 }
@@ -4372,6 +5160,7 @@ async function handleSaveDoubtSolution() {
         renderTeacherDoubts();
         showToast("🎉 সমাধান সফলভাবে শিক্ষার্থীর পোর্টালে পাঠানো হয়েছে!", "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("সমাধান সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
     }
 }
@@ -4429,6 +5218,7 @@ async function handleCreateStudyMaterial(event) {
         try {
             fileData = await readFileAsDataURL(file);
         } catch (e) {
+    console.error('❌ [EduCheck App Catch Error]:', e);
             showToast("ফাইল লোড করতে ব্যর্থ হয়েছে", "error");
             return;
         }
@@ -4468,6 +5258,7 @@ async function handleCreateStudyMaterial(event) {
         renderTeacherStudyMaterials();
         showToast("🎉 স্টাডি শিট সফলভাবে যোগ হয়েছে!", "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("শিট সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
     }
 }
@@ -4480,6 +5271,7 @@ async function deleteStudyMaterial(matId) {
         renderTeacherStudyMaterials();
         showToast("স্টাডি শিট মুছে ফেলা হয়েছে", "info");
     } catch (e) {
+    console.error('❌ [EduCheck App Catch Error]:', e);
         showToast("মুছতে সমস্যা হয়েছে: " + e.message, "error");
     }
 }
@@ -4623,6 +5415,7 @@ async function handleCreateNotice(event) {
         updateLiveNoticeAlert();
         showToast("🎉 নোটিশ সফলভাবে প্রকাশিত হয়েছে!", "success");
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         showToast("নোটিশ প্রকাশ করতে সমস্যা হয়েছে: " + err.message, "error");
     }
 }
@@ -4636,6 +5429,7 @@ async function deleteNotice(noticeId) {
         updateLiveNoticeAlert();
         showToast("নোটিশ মুছে ফেলা হয়েছে", "info");
     } catch (e) {
+    console.error('❌ [EduCheck App Catch Error]:', e);
         showToast("মুছতে সমস্যা হয়েছে: " + e.message, "error");
     }
 }
@@ -4975,6 +5769,7 @@ function forceDownloadFile(relativePath, fileName) {
         // Direct location change triggers native browser download
         window.location.href = fullUrl;
     } catch (e) {
+    console.error('❌ [EduCheck App Catch Error]:', e);
         window.location.href = relativePath;
     }
 }
@@ -4985,6 +5780,7 @@ function openFileInNewTab(relativePath) {
         window.open(fullUrl, '_blank');
         showToast(`🌐 ফাইলটি নতুন ট্যাবে রিকোয়েস্ট করা হয়েছে।`, 'info');
     } catch (e) {
+    console.error('❌ [EduCheck App Catch Error]:', e);
         window.open(relativePath, '_blank');
     }
 }
@@ -5009,6 +5805,7 @@ async function downloadAppFile(platform, btnElement) {
         window.location.href = fullUrl;
         showToast(`✅ ${filename} ডাউনলোড শুরু হয়েছে! ব্রাউজারের ডাউনলোড অপশন দেখুন।`, 'success');
     } catch (err) {
+    console.error('❌ [EduCheck App Catch Error]:', err);
         window.location.href = localUrl;
     }
 
@@ -5106,3 +5903,15 @@ window.toggleOmrAssignmentFields = toggleOmrAssignmentFields;
 window.initTeacherOmrKeyBuilder = initTeacherOmrKeyBuilder;
 window.setTeacherOmrKeyOpt = setTeacherOmrKeyOpt;
 window.requestNotificationPermission = requestNotificationPermission;
+window.renderStudentDayByDayAttendance = renderStudentDayByDayAttendance;
+window.switchTeacherAttendanceSubView = switchTeacherAttendanceSubView;
+window.openAddClassLogModal = openAddClassLogModal;
+window.handleSaveClassLog = handleSaveClassLog;
+window.deleteClassLog = deleteClassLog;
+window.renderTeacherClassLogs = renderTeacherClassLogs;
+window.renderStudentClassLogs = renderStudentClassLogs;
+window.formatBengaliDateWithDay = formatBengaliDateWithDay;
+window.filterTeacherClassLogsForStudent = filterTeacherClassLogsForStudent;
+window.escapeHtml = escapeHtml;
+
+

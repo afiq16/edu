@@ -75,9 +75,27 @@ function initFirebaseApp() {
             } else {
                 fbApp = firebase.app();
             }
-            if (firebase.auth) fbAuth = firebase.auth();
+            if (firebase.auth) {
+                fbAuth = firebase.auth();
+                try {
+                    if (!fbAuth.currentUser) {
+                        fbAuth.signInAnonymously().catch(e => {
+                            console.warn("Firebase anonymous auth notice:", e.message);
+                        });
+                    }
+                } catch (e) {}
+            }
             if (firebase.firestore) {
                 fbFirestore = firebase.firestore();
+                // Configure transport settings to prevent ERR_QUIC_PROTOCOL_ERROR on unstable/throttled networks
+                try {
+                    fbFirestore.settings({
+                        experimentalAutoDetectLongPolling: true,
+                        merge: true
+                    });
+                } catch (e) {
+                    console.warn("Firestore settings notice:", e);
+                }
                 // Enable offline cache persistence for instant offline & cloud sync
                 try {
                     fbFirestore.enablePersistence({ synchronizeTabs: true }).catch(err => {
@@ -100,7 +118,7 @@ function initFirebaseApp() {
 class StorageEngine {
     constructor() {
         this.dbName = "EduCheckDB_CloudSync_v1";
-        this.dbVersion = 1;
+        this.dbVersion = 2;
         this.db = null;
         this.init();
     }
@@ -111,7 +129,7 @@ class StorageEngine {
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
-                const stores = ["students", "assignments", "submissions", "notifications", "attendance", "doubts", "study_materials", "notices"];
+                const stores = ["students", "assignments", "submissions", "notifications", "attendance", "doubts", "study_materials", "notices", "class_logs"];
                 stores.forEach(s => {
                     if (!db.objectStoreNames.contains(s)) {
                         db.createObjectStore(s, { keyPath: "id" });
@@ -173,10 +191,21 @@ class StorageEngine {
                         }
                     });
 
-                    // Cloud is source of truth when online. Any item in local IndexedDB not found in Cloud -> delete it permanently
-                    for (const [locId] of localMap.entries()) {
+                    // Cloud is source of truth when online. Any item in local IndexedDB not found in Cloud:
+                    // If created very recently (< 3 mins), re-sync to Cloud instead of deleting; otherwise delete permanently.
+                    for (const [locId, locItem] of localMap.entries()) {
                         if (!cloudDocIds.has(locId)) {
-                            await this.deleteLocal(storeName, locId);
+                            const isVeryRecent = locItem && (
+                                (locItem.submittedAt && (Date.now() - new Date(locItem.submittedAt).getTime() < 180000)) ||
+                                (locItem.id && String(locItem.id).startsWith("SUB-") && (Date.now() - Number(String(locItem.id).replace("SUB-", ""))) < 180000) ||
+                                (locItem.createdAt && (Date.now() - new Date(locItem.createdAt).getTime() < 180000))
+                            );
+                            if (isVeryRecent) {
+                                cloudList.push(locItem);
+                                this.set(storeName, locItem);
+                            } else {
+                                await this.deleteLocal(storeName, locId);
+                            }
                         }
                     }
 
@@ -243,6 +272,10 @@ class StorageEngine {
         if (fbFirestore && item.id) {
             try {
                 const sanitized = sanitizeForFirestore(item);
+                // Strip redundant evaluatedImages if pages is present to minimize document size
+                if (sanitized && sanitized.pages && sanitized.evaluatedImages) {
+                    delete sanitized.evaluatedImages;
+                }
                 await fbFirestore.collection(storeName).doc(String(item.id)).set(sanitized, { merge: true });
                 console.log(`☁️ Synced to Firebase Firestore [${storeName}/${item.id}]`);
             } catch (err) {
@@ -340,7 +373,7 @@ class StorageEngine {
 
     async purgeAllDataPermanently() {
         console.log("🧨 Initiating full permanent database wipe...");
-        const collections = ["students", "assignments", "submissions", "notifications", "attendance", "doubts", "study_materials", "notices"];
+        const collections = ["students", "assignments", "submissions", "notifications", "attendance", "doubts", "study_materials", "notices", "class_logs"];
 
         // 1. Wipe all local IndexedDB stores first
         for (const store of collections) {
