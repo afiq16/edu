@@ -139,7 +139,7 @@ class StorageEngine {
         // 1. Get local cached records
         const localList = await this.getLocalAll(storeName);
         const localMap = new Map();
-        (localList || []).forEach(item => { if (item && item.id) localMap.set(item.id, item); });
+        (localList || []).forEach(item => { if (item && item.id) localMap.set(String(item.id), item); });
 
         // 2. Query Cloud Firestore with 6s timeout
         if (fbFirestore) {
@@ -148,48 +148,46 @@ class StorageEngine {
                 const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 6000));
                 const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
                 
-                if (snapshot && !snapshot.empty) {
-                    const mergedList = [];
+                if (snapshot) {
+                    const cloudList = [];
+                    const cloudDocIds = new Set();
+
                     snapshot.forEach(doc => {
                         const cloudItem = doc.data();
-                        const localItem = localMap.get(cloudItem.id);
+                        if (!cloudItem || !cloudItem.id) return;
+                        const docIdStr = String(cloudItem.id);
+                        cloudDocIds.add(docIdStr);
+
+                        const localItem = localMap.get(docIdStr);
 
                         // If local item has status 'checked' and cloud is still 'pending', keep local checked and sync to cloud
                         if (localItem && localItem.status === 'checked' && cloudItem.status === 'pending') {
-                            mergedList.push(localItem);
+                            cloudList.push(localItem);
                             this.set(storeName, localItem);
                         } else if (localItem && localItem.evaluation && !cloudItem.evaluation) {
-                            mergedList.push(localItem);
+                            cloudList.push(localItem);
                             this.set(storeName, localItem);
                         } else {
-                            mergedList.push(cloudItem);
+                            cloudList.push(cloudItem);
                             this.setLocal(storeName, cloudItem);
                         }
-                        localMap.delete(cloudItem.id);
                     });
 
-                    // Add any remaining local items that haven't reached cloud yet
-                    localMap.forEach(remainingItem => {
-                        mergedList.push(remainingItem);
-                        this.set(storeName, remainingItem);
-                    });
-
-                    return mergedList;
-                } else if (snapshot && snapshot.empty && localList.length > 0) {
-                    // Cloud collection is empty but local has items -> Sync all local items up to Cloud Firestore
-                    localList.forEach(item => {
-                        if (item && item.id) {
-                            this.set(storeName, item);
+                    // Cloud is source of truth when online. Any item in local IndexedDB not found in Cloud -> delete it permanently
+                    for (const [locId] of localMap.entries()) {
+                        if (!cloudDocIds.has(locId)) {
+                            await this.deleteLocal(storeName, locId);
                         }
-                    });
-                    return localList;
+                    }
+
+                    return cloudList;
                 }
             } catch (err) {
                 console.warn(`Firestore getAll fallback for ${storeName}:`, err.message);
             }
         }
 
-        // Fallback to IndexedDB
+        // Fallback to IndexedDB when offline
         return localList || [];
     }
 
@@ -269,6 +267,41 @@ class StorageEngine {
         });
     }
 
+    async deleteLocal(storeName, id) {
+        if (!id) return false;
+        if (!this.db) await this.init();
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction(storeName, "readwrite");
+                const store = tx.objectStore(storeName);
+                store.delete(id);
+                store.delete(String(id));
+                if (typeof id === 'string' && !isNaN(Number(id))) {
+                    store.delete(Number(id));
+                }
+                tx.oncomplete = () => resolve(true);
+                tx.onerror = () => resolve(false);
+            } catch (e) {
+                resolve(false);
+            }
+        });
+    }
+
+    async clearLocal(storeName) {
+        if (!this.db) await this.init();
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction(storeName, "readwrite");
+                const store = tx.objectStore(storeName);
+                const req = store.clear();
+                req.onsuccess = () => resolve(true);
+                req.onerror = () => resolve(false);
+            } catch (e) {
+                resolve(false);
+            }
+        });
+    }
+
     async delete(storeName, id) {
         if (!id) return false;
         if (!fbFirestore && typeof initFirebaseApp === 'function') {
@@ -285,19 +318,8 @@ class StorageEngine {
             }
         }
 
-        // 2. Delete from local IndexedDB
-        if (!this.db) await this.init();
-        return new Promise((resolve) => {
-            try {
-                const tx = this.db.transaction(storeName, "readwrite");
-                const store = tx.objectStore(storeName);
-                const req = store.delete(id);
-                req.onsuccess = () => resolve(true);
-                req.onerror = () => resolve(false);
-            } catch (e) {
-                resolve(false);
-            }
-        });
+        // 2. Delete from local IndexedDB with robust ID type handling
+        return await this.deleteLocal(storeName, id);
     }
 
     async clear(storeName) {
@@ -313,25 +335,21 @@ class StorageEngine {
                 console.warn(`Cloud clear error for ${storeName}:`, e);
             }
         }
-        if (!this.db) await this.init();
-        return new Promise((resolve) => {
-            try {
-                const tx = this.db.transaction(storeName, "readwrite");
-                const store = tx.objectStore(storeName);
-                const req = store.clear();
-                req.onsuccess = () => resolve(true);
-                req.onerror = () => resolve(false);
-            } catch (e) {
-                resolve(false);
-            }
-        });
+        return await this.clearLocal(storeName);
     }
 
     async purgeAllDataPermanently() {
         console.log("🧨 Initiating full permanent database wipe...");
         const collections = ["students", "assignments", "submissions", "notifications", "attendance", "doubts", "study_materials", "notices"];
 
-        // 1. Wipe all Cloud Firestore collections completely
+        // 1. Wipe all local IndexedDB stores first
+        for (const store of collections) {
+            try {
+                await this.clearLocal(store);
+            } catch (e) {}
+        }
+
+        // 2. Wipe all Cloud Firestore collections completely
         if (fbFirestore) {
             for (const col of collections) {
                 try {
@@ -348,12 +366,8 @@ class StorageEngine {
             }
         }
 
-        // 2. Wipe all local IndexedDB stores
-        for (const store of collections) {
-            try {
-                await this.clear(store);
-            } catch (e) {}
-        }
+        // 3. Clear stored user session cached data
+        localStorage.removeItem("educheck_saved_user_data");
 
         console.log("✅ Full permanent database wipe completed!");
         return true;

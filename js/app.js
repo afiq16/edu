@@ -1,4 +1,4 @@
-/**
+﻿/**
  * EduCheck Main Application Controller
  * Handles State, Authentication, Real-time Khata Submissions, Canvas Grading, and Notification Triggers
  */
@@ -80,13 +80,15 @@ function setupRealtimeFirebaseListeners() {
                     if (change.type === "added") {
                         if (index === -1) state.students.push(data);
                         else state.students[index] = data;
+                        window.dbStorage.setLocal("students", data);
                     } else if (change.type === "modified") {
                         if (index !== -1) state.students[index] = data;
                         else state.students.push(data);
+                        window.dbStorage.setLocal("students", data);
                     } else if (change.type === "removed") {
                         if (index !== -1) state.students.splice(index, 1);
+                        window.dbStorage.deleteLocal("students", data.id);
                     }
-                    window.dbStorage.setLocal("students", data);
                 });
 
                 // Update active student session if their data changed
@@ -115,13 +117,15 @@ function setupRealtimeFirebaseListeners() {
                     if (change.type === "added") {
                         if (index === -1) state.assignments.unshift(data);
                         else state.assignments[index] = data;
+                        window.dbStorage.setLocal("assignments", data);
                     } else if (change.type === "modified") {
                         if (index !== -1) state.assignments[index] = data;
                         else state.assignments.unshift(data);
+                        window.dbStorage.setLocal("assignments", data);
                     } else if (change.type === "removed") {
                         if (index !== -1) state.assignments.splice(index, 1);
+                        window.dbStorage.deleteLocal("assignments", data.id);
                     }
-                    window.dbStorage.setLocal("assignments", data);
                 });
 
                 if (state.currentUser?.role === 'teacher') {
@@ -165,6 +169,7 @@ function setupRealtimeFirebaseListeners() {
                         }
                     } else if (change.type === "removed") {
                         if (index !== -1) state.submissions.splice(index, 1);
+                        window.dbStorage.deleteLocal("submissions", data.id);
                     }
                 });
                 if (state.currentUser?.role === 'teacher') {
@@ -183,13 +188,15 @@ function setupRealtimeFirebaseListeners() {
                     if (change.type === "added") {
                         if (index === -1) state.attendance.push(data);
                         else state.attendance[index] = data;
+                        window.dbStorage.setLocal("attendance", data);
                     } else if (change.type === "modified") {
                         if (index !== -1) state.attendance[index] = data;
                         else state.attendance.push(data);
+                        window.dbStorage.setLocal("attendance", data);
                     } else if (change.type === "removed") {
                         if (index !== -1) state.attendance.splice(index, 1);
+                        window.dbStorage.deleteLocal("attendance", data.id);
                     }
-                    window.dbStorage.setLocal("attendance", data);
                 });
                 if (state.currentUser?.role === 'teacher') {
                     loadAttendanceForSelectedDate();
@@ -207,13 +214,15 @@ function setupRealtimeFirebaseListeners() {
                     if (change.type === "added") {
                         if (index === -1) state.doubts.unshift(data);
                         else state.doubts[index] = data;
+                        window.dbStorage.setLocal("doubts", data);
                     } else if (change.type === "modified") {
                         if (index !== -1) state.doubts[index] = data;
                         else state.doubts.unshift(data);
+                        window.dbStorage.setLocal("doubts", data);
                     } else if (change.type === "removed") {
                         if (index !== -1) state.doubts.splice(index, 1);
+                        window.dbStorage.deleteLocal("doubts", data.id);
                     }
-                    window.dbStorage.setLocal("doubts", data);
                 });
                 if (state.currentUser?.role === 'teacher') {
                     renderTeacherDoubts();
@@ -231,13 +240,15 @@ function setupRealtimeFirebaseListeners() {
                     if (change.type === "added") {
                         if (index === -1) state.studyMaterials.unshift(data);
                         else state.studyMaterials[index] = data;
+                        window.dbStorage.setLocal("study_materials", data);
                     } else if (change.type === "modified") {
                         if (index !== -1) state.studyMaterials[index] = data;
                         else state.studyMaterials.unshift(data);
+                        window.dbStorage.setLocal("study_materials", data);
                     } else if (change.type === "removed") {
                         if (index !== -1) state.studyMaterials.splice(index, 1);
+                        window.dbStorage.deleteLocal("study_materials", data.id);
                     }
-                    window.dbStorage.setLocal("study_materials", data);
                 });
                 if (state.currentUser?.role === 'teacher') {
                     renderTeacherStudyMaterials();
@@ -255,13 +266,15 @@ function setupRealtimeFirebaseListeners() {
                     if (change.type === "added") {
                         if (index === -1) state.notices.unshift(data);
                         else state.notices[index] = data;
+                        window.dbStorage.setLocal("notices", data);
                     } else if (change.type === "modified") {
                         if (index !== -1) state.notices[index] = data;
                         else state.notices.unshift(data);
+                        window.dbStorage.setLocal("notices", data);
                     } else if (change.type === "removed") {
                         if (index !== -1) state.notices.splice(index, 1);
+                        window.dbStorage.deleteLocal("notices", data.id);
                     }
-                    window.dbStorage.setLocal("notices", data);
                 });
                 updateLiveNoticeAlert();
                 if (state.currentUser?.role === 'teacher') {
@@ -270,6 +283,32 @@ function setupRealtimeFirebaseListeners() {
                     renderStudentNotices();
                 }
             }, err => console.warn("Notices listener notice:", err));
+
+            // 8. Listen for notifications in real-time across devices & web app
+            fbFirestore.collection("notifications").onSnapshot((snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    const data = change.doc.data();
+                    if (!data || !data.id) return;
+                    const index = state.notifications.findIndex(n => n.id === data.id);
+                    if (change.type === "added") {
+                        if (index === -1) {
+                            state.notifications.unshift(data);
+                            triggerDevicePushNotification(data);
+                        } else {
+                            state.notifications[index] = data;
+                        }
+                        window.dbStorage.setLocal("notifications", data);
+                    } else if (change.type === "modified") {
+                        if (index !== -1) state.notifications[index] = data;
+                        else state.notifications.unshift(data);
+                        window.dbStorage.setLocal("notifications", data);
+                    } else if (change.type === "removed") {
+                        if (index !== -1) state.notifications.splice(index, 1);
+                        window.dbStorage.deleteLocal("notifications", data.id);
+                    }
+                });
+                updateNotificationsUI();
+            }, err => console.warn("Notifications listener notice:", err));
 
             console.log("📡 Real-time Cloud Firestore sync active across ALL collections (Students, HW, Khata, Attendance, Doubts, Notes, Notices)");
         } catch (err) {
@@ -380,6 +419,7 @@ function initEvaluatorCanvas() {
         bellBtn.addEventListener("click", (e) => {
             e.stopPropagation();
             notifDropdown.classList.toggle("show");
+            requestNotificationPermission();
         });
         window.addEventListener("click", () => notifDropdown.classList.remove("show"));
     }
@@ -783,7 +823,7 @@ function getAuthorizedTeacherCredentials() {
             const parsed = JSON.parse(custom);
             if (parsed && parsed.email && parsed.password) {
                 return {
-                    name: parsed.name || "আফিক স্যার",
+                    name: parsed.name || "আফিক",
                     emails: [parsed.email.toLowerCase().trim(), ...AUTHORIZED_TEACHER_CREDENTIALS.emails],
                     password: parsed.password
                 };
@@ -793,7 +833,7 @@ function getAuthorizedTeacherCredentials() {
         console.warn("Failed to read custom teacher credentials", e);
     }
     return {
-        name: "আফিক স্যার",
+        name: "আফিক",
         emails: AUTHORIZED_TEACHER_CREDENTIALS.emails,
         password: AUTHORIZED_TEACHER_CREDENTIALS.password
     };
@@ -891,7 +931,7 @@ function checkRememberedSession() {
         if (savedRole === "teacher") {
             loginAsTeacher({
                 role: "teacher",
-                name: "আফিক স্যার (শিক্ষক)",
+                name: "আফিক (শিক্ষক)",
                 email: "teacher@educheck.com",
                 avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=TeacherAfiq"
             });
@@ -976,6 +1016,7 @@ function applyAuthStateUI() {
     const mobileBottomNav = document.getElementById("mobileBottomNav");
     const studentMobGroup = document.getElementById("studentMobileNavGroup");
     const teacherMobGroup = document.getElementById("teacherMobileNavGroup");
+    const appDownloadNavBtn = document.getElementById("appDownloadNavBtn");
 
     if (!state.currentUser) {
         document.body.classList.remove("is-logged-in");
@@ -986,6 +1027,7 @@ function applyAuthStateUI() {
         if (userProfilePill) userProfilePill.style.display = "none";
         if (notifBtnWrapper) notifBtnWrapper.style.display = "none";
         if (guestRoleSwitch) guestRoleSwitch.style.display = "flex";
+        if (appDownloadNavBtn) appDownloadNavBtn.style.display = "inline-flex";
         if (mobileBottomNav) mobileBottomNav.style.removeProperty("display");
         return;
     }
@@ -997,6 +1039,7 @@ function applyAuthStateUI() {
     if (guestRoleSwitch) guestRoleSwitch.style.display = "none";
     if (userProfilePill) userProfilePill.style.display = "flex";
     if (notifBtnWrapper) notifBtnWrapper.style.display = "block";
+    if (appDownloadNavBtn) appDownloadNavBtn.style.display = "none";
     if (mobileBottomNav) mobileBottomNav.style.removeProperty("display");
 
     document.getElementById("navUserName").textContent = state.currentUser.name;
@@ -1398,9 +1441,80 @@ function onSelectAssignmentToSubmit() {
 // ==========================================================================
 // CREATE ASSIGNMENT (TEACHER ACTION)
 // ==========================================================================
+window.teacherOmrKey = {};
+
 function openCreateAssignmentModal() {
-    document.getElementById("createAssignmentForm").reset();
+    const form = document.getElementById("createAssignmentForm");
+    if (form) form.reset();
+    toggleOmrAssignmentFields();
     openModal("createAssignmentModal");
+}
+
+function toggleOmrAssignmentFields() {
+    const format = document.getElementById("assignFormat")?.value || "normal";
+    const panel = document.getElementById("omrAssignmentConfigPanel");
+    if (panel) {
+        if (format === 'omr') {
+            panel.style.display = "block";
+            initTeacherOmrKeyBuilder();
+        } else {
+            panel.style.display = "none";
+        }
+    }
+}
+
+function initTeacherOmrKeyBuilder() {
+    const count = parseInt(document.getElementById("omrAssignQuestionCount")?.value || "20", 10);
+    const container = document.getElementById("teacherOmrKeyGrid");
+    if (!container) return;
+
+    window.teacherOmrKey = {};
+
+    let html = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px;">`;
+    for (let i = 1; i <= count; i++) {
+        html += `
+            <div style="background: var(--bg-surface-secondary); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: bold; font-size: 0.82rem; color: var(--text-primary);">${i}.</span>
+                <div style="display: flex; gap: 4px;">
+                    ${['A', 'B', 'C', 'D'].map(opt => `
+                        <button type="button" class="omr-key-opt-btn" id="teacherKey_Q${i}_${opt}" onclick="setTeacherOmrKeyOpt(${i}, '${opt}')" style="width: 22px; height: 22px; border-radius: 50%; border: 1px solid #cbd5e1; background: white; color: #334155; font-size: 0.72rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-weight: bold;">
+                            ${opt}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function setTeacherOmrKeyOpt(qNum, option) {
+    if (window.teacherOmrKey[qNum] === option) {
+        delete window.teacherOmrKey[qNum];
+        const btn = document.getElementById(`teacherKey_Q${qNum}_${option}`);
+        if (btn) {
+            btn.style.background = 'white';
+            btn.style.color = '#334155';
+            btn.style.borderColor = '#cbd5e1';
+        }
+    } else {
+        ['A', 'B', 'C', 'D'].forEach(opt => {
+            const btn = document.getElementById(`teacherKey_Q${qNum}_${opt}`);
+            if (btn) {
+                btn.style.background = 'white';
+                btn.style.color = '#334155';
+                btn.style.borderColor = '#cbd5e1';
+            }
+        });
+        window.teacherOmrKey[qNum] = option;
+        const targetBtn = document.getElementById(`teacherKey_Q${qNum}_${option}`);
+        if (targetBtn) {
+            targetBtn.style.background = '#8b5cf6';
+            targetBtn.style.color = 'white';
+            targetBtn.style.borderColor = '#8b5cf6';
+        }
+    }
 }
 
 async function handleSaveNewAssignment(event) {
@@ -1413,16 +1527,27 @@ async function handleSaveNewAssignment(event) {
 
     try {
         const title = document.getElementById("assignTitle").value.trim();
+        const format = document.getElementById("assignFormat")?.value || "normal";
         const type = document.getElementById("assignType").value;
         const subject = document.getElementById("assignSubject").value.trim();
         const assignClass = document.getElementById("assignClass").value;
         const deadline = document.getElementById("assignDeadline").value;
         const desc = document.getElementById("assignDesc").value.trim();
 
+        const isOmr = (format === 'omr');
+        const omrQuestions = isOmr ? parseInt(document.getElementById("omrAssignQuestionCount")?.value || "20", 10) : 0;
+        const omrNegativeMark = isOmr ? parseFloat(document.getElementById("omrAssignNegativeMark")?.value || "0.25") : 0;
+        const omrAnswerKey = isOmr ? { ...window.teacherOmrKey } : null;
+
         const newAssign = {
-            id: (type === 'exam' ? 'XM-' : 'HW-') + Math.floor(100 + Math.random() * 900),
+            id: (isOmr ? 'OMR-' : (type === 'exam' ? 'XM-' : 'HW-')) + Math.floor(100 + Math.random() * 900),
             title,
+            format,
             type,
+            isOmr,
+            omrQuestions,
+            omrNegativeMark,
+            omrAnswerKey,
             subject,
             class: assignClass,
             deadline: new Date(deadline).toISOString(),
@@ -1434,7 +1559,7 @@ async function handleSaveNewAssignment(event) {
         await window.dbStorage.set("assignments", newAssign);
 
         addNotification({
-            title: `নতুন ${type === 'exam' ? 'পরীক্ষা' : 'হোমওয়ার্ক'} যুক্ত হয়েছে!`,
+            title: `নতুন ${isOmr ? 'OMR MCQ পরীক্ষা' : (type === 'exam' ? 'পরীক্ষা' : 'হোমওয়ার্ক')} যুক্ত হয়েছে!`,
             message: `${subject}: "${title}" জমা দেওয়ার শেষ তারিখ ${formatBanglaDateTime(newAssign.deadline)}।`,
             targetClass: assignClass
         });
@@ -1942,13 +2067,14 @@ function renderStudentActiveHw() {
     grid.innerHTML = myAssignments.map(a => {
         // Check if student already submitted this
         const alreadySub = state.submissions.find(s => s.assignmentId === a.id && s.studentId === student.id);
+        const isOmr = a.isOmr || a.format === 'omr';
 
         return `
             <div class="assignment-card">
                 <div>
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span class="assign-type-badge ${a.type === 'homework' ? 'assign-type-homework' : 'assign-type-exam'}">
-                            ${a.type === 'homework' ? 'ডেইলি হোমওয়ার্ক' : 'পরীক্ষার খাতা'}
+                        <span class="assign-type-badge ${isOmr ? 'assign-type-omr' : (a.type === 'homework' ? 'assign-type-homework' : 'assign-type-exam')}">
+                            ${isOmr ? '<i class="fa-solid fa-list-check"></i> OMR MCQ পরীক্ষা' : (a.type === 'homework' ? 'ডেইলি হোমওয়ার্ক' : 'পরীক্ষার খাতা')}
                         </span>
                         <div data-deadline-countdown="${a.deadline}">
                             ${getExamCountdownHtml(a.deadline)}
@@ -1962,18 +2088,325 @@ function renderStudentActiveHw() {
                         <i class="fa-regular fa-clock"></i> জমা দেওয়ার শেষ সময়: ${formatBanglaDateTime(a.deadline)}
                     </div>
                     ${alreadySub ? `
-                        <button class="btn btn-secondary btn-block" onclick="viewEvaluatedKhata('${alreadySub.id}')">
+                        <button class="btn btn-secondary btn-block" onclick="${alreadySub.assignmentType === 'omr' || alreadySub.omrAnswers ? `openStudentOmrViewModal('${alreadySub.id}')` : `viewEvaluatedKhata('${alreadySub.id}')`}">
                             <i class="fa-solid fa-check"></i> জমা দেওয়া হয়েছে (${alreadySub.status === 'checked' ? 'ফলাফল দেখুন' : 'অপেক্ষমান'})
+                        </button>
+                    ` : (isOmr ? `
+                        <button class="btn btn-purple btn-block" onclick="openStudentOmrModal('${a.id}')">
+                            <i class="fa-solid fa-list-check"></i> OMR শিট পূরণ ও জমা দিন
                         </button>
                     ` : `
                         <button class="btn btn-primary btn-block" onclick="openSubmitHomeworkModal('${a.id}')">
                             <i class="fa-solid fa-camera"></i> খাতার ছবি জমা দিন
                         </button>
-                    `}
+                    `)}
                 </div>
             </div>
         `;
     }).join('');
+}
+
+// ==========================================================================
+// STUDENT OMR EXAMINATION ENGINE
+// ==========================================================================
+window.studentOmrState = {
+    assignmentId: null,
+    title: "",
+    subject: "",
+    totalQuestions: 20,
+    negativeMark: 0.25,
+    answerKey: null,
+    answers: {},
+    timerInterval: null,
+    deadlineIso: null
+};
+
+function openStudentOmrModal(assignmentId) {
+    const assign = state.assignments.find(a => a.id === assignmentId);
+    if (!assign) return;
+
+    window.studentOmrState = {
+        assignmentId: assign.id,
+        title: assign.title,
+        subject: assign.subject || "সাধারণ বিষয়",
+        totalQuestions: assign.omrQuestions || 20,
+        negativeMark: assign.omrNegativeMark || 0,
+        answerKey: assign.omrAnswerKey || null,
+        answers: {},
+        timerInterval: null,
+        deadlineIso: assign.deadline
+    };
+
+    document.getElementById("studentOmrModalTitle").textContent = assign.title;
+    document.getElementById("studentOmrSubject").textContent = assign.subject || "সাধারণ বিষয়";
+    document.getElementById("studentOmrTotalQ").textContent = window.studentOmrState.totalQuestions + " টি";
+
+    const submitBtn = document.getElementById("submitStudentOmrBtn");
+    if (submitBtn) submitBtn.style.display = "inline-flex";
+
+    renderStudentOmrGridUI();
+    updateStudentOmrAnsweredBadge();
+    startStudentOmrTimer();
+
+    openModal("studentOmrModal");
+}
+
+function renderStudentOmrGridUI() {
+    const container = document.getElementById("studentOmrGridWrapper");
+    if (!container) return;
+
+    const total = window.studentOmrState.totalQuestions;
+    const answers = window.studentOmrState.answers;
+
+    let html = `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
+    for (let i = 1; i <= total; i++) {
+        const selected = answers[i];
+        html += `
+            <div style="background: var(--bg-surface-secondary); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: bold; font-size: 0.88rem; color: var(--text-primary);">${i}.</span>
+                <div style="display: flex; gap: 6px;">
+                    ${['A', 'B', 'C', 'D'].map(opt => `
+                        <button type="button" 
+                                onclick="toggleStudentOmrBubble(${i}, '${opt}')"
+                                style="width: 26px; height: 26px; border-radius: 50%; border: 1px solid ${selected === opt ? '#8b5cf6' : '#cbd5e1'}; background: ${selected === opt ? '#8b5cf6' : 'white'}; color: ${selected === opt ? 'white' : '#334155'}; font-size: 0.78rem; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s ease;">
+                            ${opt}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function toggleStudentOmrBubble(qNum, option) {
+    if (window.studentOmrState.answers[qNum] === option) {
+        delete window.studentOmrState.answers[qNum];
+    } else {
+        window.studentOmrState.answers[qNum] = option;
+    }
+    renderStudentOmrGridUI();
+    updateStudentOmrAnsweredBadge();
+}
+
+function updateStudentOmrAnsweredBadge() {
+    const count = Object.keys(window.studentOmrState.answers || {}).length;
+    const total = window.studentOmrState.totalQuestions;
+    const badge = document.getElementById("studentOmrAnsweredBadge");
+    if (badge) {
+        badge.textContent = `উত্তরিত: ${count} / ${total}`;
+    }
+}
+
+function startStudentOmrTimer() {
+    if (window.studentOmrState.timerInterval) {
+        clearInterval(window.studentOmrState.timerInterval);
+    }
+
+    const timerBadge = document.getElementById("studentOmrTimeRemaining");
+    if (!window.studentOmrState.deadlineIso) {
+        if (timerBadge) timerBadge.textContent = "কোনো সময়সীমা নেই";
+        return;
+    }
+
+    const deadline = new Date(window.studentOmrState.deadlineIso).getTime();
+
+    const updateTimer = () => {
+        const now = new Date().getTime();
+        const diff = deadline - now;
+
+        if (diff <= 0) {
+            if (timerBadge) timerBadge.textContent = "সময় শেষ!";
+            clearInterval(window.studentOmrState.timerInterval);
+            return;
+        }
+
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+        if (timerBadge) {
+            timerBadge.textContent = `${hours > 0 ? hours + 'ঘ ' : ''}${mins}মি ${secs}সে`;
+        }
+    };
+
+    updateTimer();
+    window.studentOmrState.timerInterval = setInterval(updateTimer, 1000);
+}
+
+async function handleStudentSubmitOmr() {
+    const student = state.currentUser;
+    if (!student) return;
+
+    const stateObj = window.studentOmrState;
+    const submitBtn = document.getElementById("submitStudentOmrBtn");
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> জমা হচ্ছে...`;
+    }
+
+    try {
+        const total = stateObj.totalQuestions;
+        const key = stateObj.answerKey;
+        const answers = stateObj.answers;
+        const negMark = stateObj.negativeMark || 0;
+
+        let correct = 0;
+        let wrong = 0;
+        let unattempted = 0;
+
+        for (let q = 1; q <= total; q++) {
+            const studentChoice = answers[q];
+            if (!studentChoice) {
+                unattempted++;
+            } else if (key && key[q]) {
+                if (studentChoice === key[q]) correct++;
+                else wrong++;
+            } else {
+                // Treated as answered
+            }
+        }
+
+        let totalScore = correct - (wrong * negMark);
+        if (totalScore < 0) totalScore = 0;
+
+        let grade = "A+";
+        const pct = (totalScore / total) * 100;
+        if (pct >= 80) grade = "A+";
+        else if (pct >= 70) grade = "A";
+        else if (pct >= 60) grade = "A-";
+        else if (pct >= 50) grade = "B";
+        else grade = "F";
+
+        const submission = {
+            id: "SUB-OMR-" + Date.now(),
+            assignmentId: stateObj.assignmentId,
+            assignmentTitle: stateObj.title,
+            assignmentType: "omr",
+            subject: stateObj.subject,
+            studentId: student.id,
+            studentName: student.name,
+            studentClass: student.class,
+            studentAvatar: student.avatar,
+            submittedAt: new Date().toISOString(),
+            status: key ? "checked" : "pending",
+            omrAnswers: answers,
+            evaluation: key ? {
+                obtainedMarks: totalScore,
+                totalMarks: total,
+                correct,
+                wrong,
+                unattempted,
+                grade,
+                remarks: `MCQ OMR স্বয়ংক্রিয় মূল্যায়ন: সঠিক ${correct}, ভুল ${wrong}, প্রাপ্ত নম্বর ${totalScore}/${total} (${grade})`,
+                evaluatedAt: new Date().toISOString(),
+                evaluator: "ডিজিটাল OMR ইঞ্জিন"
+            } : null
+        };
+
+        state.submissions.unshift(submission);
+        await window.dbStorage.set("submissions", submission);
+
+        // Notify teacher
+        addNotification({
+            title: `OMR পরীক্ষা জমা দেওয়া হয়েছে! 📝`,
+            message: `${student.name} (${student.id}) "${stateObj.title}" OMR পরীক্ষা জমা দিয়েছে।${key ? ' প্রাপ্ত নম্বর: ' + totalScore + '/' + total : ''}`,
+            teacherTarget: true
+        });
+
+        if (window.studentOmrState.timerInterval) {
+            clearInterval(window.studentOmrState.timerInterval);
+        }
+
+        closeModal("studentOmrModal");
+        renderStudentDashboard();
+        showToast(`🎉 OMR পরীক্ষা সফলভাবে জমা দেওয়া হয়েছে! ${key ? 'প্রাপ্ত নম্বর: ' + totalScore + '/' + total : ''}`, "success");
+    } catch (err) {
+        showToast("OMR জমা দিতে সমস্যা হয়েছে: " + err.message, "error");
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> OMR পরীক্ষা জমা দিন`;
+        }
+    }
+}
+
+function openStudentOmrViewModal(submissionId) {
+    const sub = state.submissions.find(s => s.id === submissionId);
+    if (!sub) return;
+
+    const assign = state.assignments.find(a => a.id === sub.assignmentId);
+    const key = assign?.omrAnswerKey || {};
+    const answers = sub.omrAnswers || {};
+    const evalObj = sub.evaluation || {};
+
+    const container = document.getElementById("studentOmrGridWrapper");
+    if (!container) return;
+
+    window.studentOmrState = {
+        assignmentId: sub.assignmentId,
+        title: sub.assignmentTitle,
+        subject: sub.subject || "সাধারণ বিষয়",
+        totalQuestions: assign?.omrQuestions || Object.keys(answers).length || 20,
+        answers: answers
+    };
+
+    document.getElementById("studentOmrModalTitle").textContent = sub.assignmentTitle + " (ফলাফল)";
+    document.getElementById("studentOmrSubject").textContent = sub.subject || "সাধারণ বিষয়";
+    document.getElementById("studentOmrTotalQ").textContent = (assign?.omrQuestions || 20) + " টি";
+    document.getElementById("studentOmrTimeRemaining").textContent = "জমা সম্পন্ন";
+
+    let html = `
+        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; padding: 12px; border-radius: 8px; margin-bottom: 12px; text-align: center;">
+            <h4 style="color: #059669; margin-bottom: 4px;"><i class="fa-solid fa-trophy"></i> প্রাপ্ত নম্বর: ${evalObj.obtainedMarks || 0} / ${evalObj.totalMarks || 20} (গ্রেড: ${evalObj.grade || '--'})</h4>
+            <p style="font-size: 0.82rem; color: #334155; margin: 0;">${evalObj.remarks || 'মূল্যায়ন সম্পন্ন হয়েছে'}</p>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">
+    `;
+
+    const total = assign?.omrQuestions || 20;
+    for (let i = 1; i <= total; i++) {
+        const studentChoice = answers[i];
+        const correctChoice = key[i];
+
+        html += `
+            <div style="background: var(--bg-surface-secondary); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: bold; font-size: 0.88rem;">${i}.</span>
+                <div style="display: flex; gap: 6px;">
+                    ${['A', 'B', 'C', 'D'].map(opt => {
+                        let bg = "white";
+                        let color = "#334155";
+                        let border = "#cbd5e1";
+
+                        if (correctChoice && opt === correctChoice) {
+                            bg = "#10b981";
+                            color = "white";
+                            border = "#10b981";
+                        } else if (studentChoice === opt && studentChoice !== correctChoice) {
+                            bg = "#ef4444";
+                            color = "white";
+                            border = "#ef4444";
+                        }
+
+                        return `
+                            <span style="width: 24px; height: 26px; border-radius: 50%; border: 1px solid ${border}; background: ${bg}; color: ${color}; font-size: 0.76rem; font-weight: bold; display: inline-flex; align-items: center; justify-content: center;">
+                                ${opt}
+                            </span>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+
+    // Hide submit button in view mode
+    const submitBtn = document.getElementById("submitStudentOmrBtn");
+    if (submitBtn) submitBtn.style.display = "none";
+
+    openModal("studentOmrModal");
 }
 
 function renderStudentHistory() {
@@ -2260,6 +2693,48 @@ function downloadEvaluatedKhata() {
 // ==========================================================================
 // NOTIFICATIONS ENGINE
 // ==========================================================================
+function requestNotificationPermission() {
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
+                showToast("🔔 ডিভাইস নোটিফিকেশন সার্ভিস চালু করা হয়েছে!", "success");
+            }
+        });
+    }
+}
+
+function triggerDevicePushNotification(notif) {
+    if (!state.currentUser) return;
+    const user = state.currentUser;
+
+    // Filter relevance
+    if (user.role === 'student') {
+        if (notif.studentId && notif.studentId !== user.id && notif.studentId !== user.phone) return;
+        if (notif.targetClass && notif.targetClass !== 'All' && notif.targetClass !== user.class) return;
+    } else if (user.role === 'teacher') {
+        if (notif.studentId && !notif.teacherTarget && !notif.targetRole) return;
+    }
+
+    // In-app Toast message
+    showToast(`🔔 ${notif.title}: ${notif.message}`, "info");
+
+    // HTML5 System Push Notification on Browser / Phone / WebApp
+    if ("Notification" in window && Notification.permission === "granted") {
+        try {
+            const options = {
+                body: notif.message,
+                icon: "https://img.icons8.com/color/96/000000/graduation-cap.png",
+                badge: "https://img.icons8.com/color/96/000000/graduation-cap.png",
+                tag: notif.id,
+                vibrate: [200, 100, 200]
+            };
+            new Notification(`EduCheck: ${notif.title}`, options);
+        } catch (e) {
+            console.warn("Push notification send error:", e);
+        }
+    }
+}
+
 async function addNotification(notifData) {
     const notif = {
         id: "NOTIF-" + Date.now(),
@@ -2282,8 +2757,13 @@ function updateNotificationsUI() {
     // Filter relevant notifications
     const relevant = state.notifications.filter(n => {
         if (!state.currentUser) return false;
-        if (state.currentUser.role === 'teacher') return true;
-        return !n.studentId || n.studentId === state.currentUser.id;
+        if (state.currentUser.role === 'teacher') {
+            return !n.studentId || n.teacherTarget || n.targetRole === 'teacher';
+        }
+        // For student
+        if (n.studentId) return n.studentId === state.currentUser.id || n.studentId === state.currentUser.phone;
+        if (n.targetClass) return n.targetClass === 'All' || n.targetClass === state.currentUser.class;
+        return true;
     });
 
     const unread = relevant.filter(n => !n.read).length;
@@ -2318,6 +2798,7 @@ function updateNotificationsUI() {
 function openModal(modalId) {
     const el = document.getElementById(modalId);
     if (el) {
+        el.style.display = "flex";
         el.classList.add("show");
         document.body.classList.add("modal-open");
     }
@@ -2326,6 +2807,7 @@ function openModal(modalId) {
 function closeModal(modalId) {
     const el = document.getElementById(modalId);
     if (el) {
+        el.style.display = "none";
         el.classList.remove("show");
     }
     // Only remove modal-open class if no other modal is currently visible
@@ -2618,20 +3100,22 @@ async function promptResetDatabase() {
     if (!confirmWipe) return;
 
     try {
-        // Clear all states
+        // Clear all state arrays
         state.students = [];
         state.assignments = [];
         state.submissions = [];
         state.notifications = [];
+        state.attendance = [];
+        state.doubts = [];
+        state.studyMaterials = [];
+        state.notices = [];
 
         // Purge completely from local IndexedDB and Cloud Firestore
         if (window.dbStorage && typeof window.dbStorage.purgeAllDataPermanently === 'function') {
             await window.dbStorage.purgeAllDataPermanently();
         }
 
-        renderTeacherDashboard();
-        renderTeacherStudentsList();
-        renderTeacherAssignments();
+        renderAllViews();
         showToast("✨ সমস্ত ডেটাবেস চিরতরে পার্মানেন্টলি মুছে ফেলা হয়েছে (একদম নতুন ফ্রেশ ডেটাবেস)!", "success");
     } catch (err) {
         console.error("Reset error:", err);
@@ -2811,7 +3295,7 @@ function formatKhataWhatsAppMessage(sub) {
     const grade = sub.evaluation?.grade || "A";
     const remarks = sub.evaluation?.remarks || "খাতা মূল্যায়ন সম্পন্ন হয়েছে।";
     const creds = getAuthorizedTeacherCredentials();
-    const teacherName = creds.name || "আফিক স্যার";
+    const teacherName = creds.name || "আফিক";
 
     return `*EduCheck ডিজিটাল একাডেমি - খাতা মূল্যায়নের ফলাফল* 📝\n\n` +
            `👤 *শিক্ষার্থীর নাম:* ${sub.studentName}\n` +
@@ -2879,7 +3363,7 @@ function sendReportCardWhatsApp() {
     }
 
     const creds = getAuthorizedTeacherCredentials();
-    const teacherName = creds.name || "আফিক স্যার";
+    const teacherName = creds.name || "আফিক";
 
     const msg = `🎓 *EduCheck ডিজিটাল একাডেমি - শিক্ষার্থী অগ্রগতি রিপোর্ট* 📄\n\n` +
         `👤 *শিক্ষার্থীর নাম:* ${student.name}\n` +
@@ -2941,7 +3425,7 @@ function openStudentReportCardModal(studentId) {
     const creds = getAuthorizedTeacherCredentials();
     const stampEl = document.getElementById("reportTeacherStamp");
     if (stampEl) {
-        stampEl.innerHTML = `${creds.name || 'আফিক স্যার'}<br><small>প্রধান শিক্ষক ও নির্দেশক</small>`;
+        stampEl.innerHTML = `${creds.name || 'আফিক'}<br><small>প্রধান শিক্ষক ও নির্দেশক</small>`;
     }
 
     // Filter submissions for this student
@@ -3025,7 +3509,7 @@ function openTeacherSettingsModal() {
     const newPassInput = document.getElementById("teacherSettingsNewPass");
     const confirmPassInput = document.getElementById("teacherSettingsConfirmPass");
 
-    if (nameInput) nameInput.value = creds.name || "আফিক স্যার";
+    if (nameInput) nameInput.value = creds.name || "আফিক";
     if (emailInput) emailInput.value = creds.emails[0] || "teacher@gmail.com";
     if (currentPassInput) currentPassInput.value = "";
     if (newPassInput) newPassInput.value = "";
@@ -3502,6 +3986,13 @@ async function saveDailyAttendance() {
 
     try {
         await window.dbStorage.set("attendance", attRecord);
+
+        addNotification({
+            title: `📅 উপস্থিতি সংরক্ষিত হয়েছে (${selectedDate})`,
+            message: `শিক্ষক উপস্থিতি গ্রহণ করেছেন।`,
+            targetClass: 'All'
+        });
+
         showToast(`✅ ${selectedDate} তারিখের উপস্থিতি সফলভাবে সংরক্ষিত ও ক্লাউডে সিঙ্ক হয়েছে!`, "success");
     } catch (err) {
         showToast("উপস্থিতি সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message, "error");
@@ -3513,7 +4004,7 @@ function sendAbsentWhatsAppAlert(studentId) {
     if (!student) return;
 
     const creds = getAuthorizedTeacherCredentials();
-    const teacherName = creds.name || "আফিক স্যার";
+    const teacherName = creds.name || "আফিক";
     const dateStr = state.selectedAttendanceDate || new Date().toISOString().split('T')[0];
 
     const message = 
@@ -3665,7 +4156,7 @@ function renderStudentDoubts() {
                 ${isResolved && d.solution ? `
                     <div class="doubt-solution-box">
                         <div class="sol-header">
-                            <strong><i class="fa-solid fa-chalkboard-user"></i> ${d.solution.teacherName || 'আফিক স্যার'} এর সমাধান:</strong>
+                            <strong><i class="fa-solid fa-chalkboard-user"></i> ${d.solution.teacherName || 'আফিক'} এর সমাধান:</strong>
                             <small>${formatBanglaDateTime(d.solution.resolvedAt)}</small>
                         </div>
                         <div class="sol-text">${d.solution.text}</div>
@@ -3858,7 +4349,7 @@ async function handleSaveDoubtSolution() {
     }
 
     const creds = getAuthorizedTeacherCredentials();
-    const teacherName = creds.name || "আফিক স্যার";
+    const teacherName = creds.name || "আফিক";
 
     doubt.status = "resolved";
     doubt.solution = {
@@ -3870,6 +4361,13 @@ async function handleSaveDoubtSolution() {
 
     try {
         await window.dbStorage.set("doubts", doubt);
+
+        addNotification({
+            title: `💡 আপনার ডাউটের সমাধান দেওয়া হয়েছে!`,
+            message: `${doubt.subject || 'বিষয়'}: সমাধান প্রকাশিত হয়েছে`,
+            studentId: doubt.studentId
+        });
+
         closeModal("resolveDoubtModal");
         renderTeacherDoubts();
         showToast("🎉 সমাধান সফলভাবে শিক্ষার্থীর পোর্টালে পাঠানো হয়েছে!", "success");
@@ -3953,12 +4451,19 @@ async function handleCreateStudyMaterial(event) {
         fileName: fileName,
         linkUrl: linkUrl,
         createdAt: new Date().toISOString(),
-        author: "আফিক স্যার"
+        author: "আফিক"
     };
 
     try {
         await window.dbStorage.set("study_materials", material);
         state.studyMaterials.unshift(material);
+
+        addNotification({
+            title: `📚 নতুন স্টাডি শিট: ${title}`,
+            message: `${subject}: ${desc || title}`,
+            targetClass: classLevel
+        });
+
         closeModal("addStudyMaterialModal");
         renderTeacherStudyMaterials();
         showToast("🎉 স্টাডি শিট সফলভাবে যোগ হয়েছে!", "success");
@@ -4091,7 +4596,7 @@ async function handleCreateNotice(event) {
     }
 
     const creds = getAuthorizedTeacherCredentials();
-    const teacherName = creds.name || "আফিক স্যার";
+    const teacherName = creds.name || "আফিক";
 
     const notice = {
         id: "notice_" + Date.now(),
@@ -4106,6 +4611,13 @@ async function handleCreateNotice(event) {
     try {
         await window.dbStorage.set("notices", notice);
         state.notices.unshift(notice);
+
+        addNotification({
+            title: `📢 নতুন নোটিশ: ${title}`,
+            message: body.substring(0, 100),
+            targetClass: 'All'
+        });
+
         closeModal("createNoticeModal");
         renderTeacherNotices();
         updateLiveNoticeAlert();
@@ -4231,7 +4743,7 @@ function openNoticeDetailModal(noticeId) {
     const bodyEl = document.getElementById("viewNoticeBody");
 
     if (titleEl) titleEl.textContent = notice.title;
-    if (dateEl) dateEl.textContent = `প্রকাশিত: ${formatBanglaDateTime(notice.createdAt)} • নির্দেশক: ${notice.author || 'আফিক স্যার'}`;
+    if (dateEl) dateEl.textContent = `প্রকাশিত: ${formatBanglaDateTime(notice.createdAt)} • নির্দেশক: ${notice.author || 'আফিক'}`;
     if (badgeWrap) {
         badgeWrap.innerHTML = `
             <span class="badge ${notice.priority === 'urgent' ? 'badge-urgent' : 'badge-general'}">
@@ -4249,7 +4761,7 @@ function sendNoticeWhatsAppBroadcast(noticeId) {
     if (!notice) return;
 
     const creds = getAuthorizedTeacherCredentials();
-    const teacherName = creds.name || "আফিক স্যার";
+    const teacherName = creds.name || "আফিক";
 
     const message = 
         `📢 *একাডেমিয়া - জরুরি নোটিশ*\n\n` +
@@ -4521,9 +5033,59 @@ function copyAppDownloadLink() {
     }
 }
 
+function switchStorePlatform(platform) {
+    const tabAndroidBtn = document.getElementById("tabAndroidBtn");
+    const tabIosBtn = document.getElementById("tabIosBtn");
+    const androidStorePane = document.getElementById("androidStorePane");
+    const iosStorePane = document.getElementById("iosStorePane");
+
+    if (platform === "android") {
+        if (tabAndroidBtn) tabAndroidBtn.classList.add("active");
+        if (tabIosBtn) tabIosBtn.classList.remove("active");
+        if (androidStorePane) { androidStorePane.style.display = "block"; androidStorePane.classList.add("active"); }
+        if (iosStorePane) { iosStorePane.style.display = "none"; iosStorePane.classList.remove("active"); }
+    } else {
+        if (tabIosBtn) tabIosBtn.classList.add("active");
+        if (tabAndroidBtn) tabAndroidBtn.classList.remove("active");
+        if (iosStorePane) { iosStorePane.style.display = "block"; iosStorePane.classList.add("active"); }
+        if (androidStorePane) { androidStorePane.style.display = "none"; androidStorePane.classList.remove("active"); }
+    }
+}
+
+function triggerPlayStoreDownload(event, relativePath, fileName, appType, btnElement) {
+    showToast(`🚀 ${appType} (${fileName}) ডাউনলোড শুরু হয়েছে!`, 'success');
+    
+    if (btnElement) {
+        const textSpan = btnElement.querySelector(".btn-text");
+        const progressBar = btnElement.querySelector(".playstore-dl-progress-bar");
+        const origText = textSpan ? textSpan.innerHTML : btnElement.innerHTML;
+
+        btnElement.classList.add("is-downloading");
+        if (textSpan) textSpan.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ডাউনলোড হচ্ছে...`;
+        
+        let pct = 0;
+        const interval = setInterval(() => {
+            pct += 25;
+            if (progressBar) progressBar.style.width = pct + "%";
+            if (pct >= 100) {
+                clearInterval(interval);
+                setTimeout(() => {
+                    if (textSpan) textSpan.innerHTML = `<i class="fa-solid fa-circle-check"></i> ডাউনলোড সম্পন্ন!`;
+                    if (progressBar) progressBar.style.width = "0%";
+                    setTimeout(() => {
+                        if (textSpan) textSpan.innerHTML = origText;
+                        btnElement.classList.remove("is-downloading");
+                    }, 2500);
+                }, 400);
+            }
+        }, 120);
+    }
+    return true;
+}
+
 function shareAppDownloadWhatsApp() {
     const downloadUrl = window.location.origin + window.location.pathname;
-    const text = `📱 *EduCheck মোবাইল অ্যাপ*\n\nডিজিটাল খাতা মূল্যায়ন ও হোমওয়ার্ক পোর্টাল:\nAndroid APK ও iOS বিল্ড সরাসরি ডাউনলোড করুন অথবা ব্রাউজারে ব্যবহার করুন:\n🔗 ${downloadUrl}\n\nপরিচালনায়: আফিক স্যার`;
+    const text = `📱 *EduCheck মোবাইল অ্যাপ*\n\nডিজিটাল খাতা মূল্যায়ন ও হোমওয়ার্ক পোর্টাল:\nAndroid APK ও iOS বিল্ড সরাসরি ডাউনলোড করুন অথবা ব্রাউজারে ব্যবহার করুন:\n🔗 ${downloadUrl}\n\nপরিচালনায়: আফিক`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(waUrl, '_blank');
 }
@@ -4535,3 +5097,12 @@ window.forceDownloadFile = forceDownloadFile;
 window.openFileInNewTab = openFileInNewTab;
 window.copyAppDownloadLink = copyAppDownloadLink;
 window.shareAppDownloadWhatsApp = shareAppDownloadWhatsApp;
+window.switchStorePlatform = switchStorePlatform;
+window.triggerPlayStoreDownload = triggerPlayStoreDownload;
+window.openStudentOmrModal = openStudentOmrModal;
+window.handleStudentSubmitOmr = handleStudentSubmitOmr;
+window.openStudentOmrViewModal = openStudentOmrViewModal;
+window.toggleOmrAssignmentFields = toggleOmrAssignmentFields;
+window.initTeacherOmrKeyBuilder = initTeacherOmrKeyBuilder;
+window.setTeacherOmrKeyOpt = setTeacherOmrKeyOpt;
+window.requestNotificationPermission = requestNotificationPermission;
